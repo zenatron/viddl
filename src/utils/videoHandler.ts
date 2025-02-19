@@ -47,9 +47,21 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Referer': url
-      }
+      },
+      // Add these options for Vercel environment
+      next: {
+        revalidate: 0
+      },
+      cache: 'no-store'
     });
+
+    if (!response.ok) {
+      console.error('Failed to fetch page:', response.status, response.statusText);
+      throw new Error(`Failed to fetch page: ${response.status}`);
+    }
+
     const html = await response.text();
+    console.log('Received HTML length:', html.length);
     
     // Look specifically for video URLs
     const videoPatterns = [
