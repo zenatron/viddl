@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getVideoInfo } from "@/utils/videoHandler";
 
-// Add this to specify the runtime
 export const runtime = 'nodejs';
+export const maxDuration = 10; // seconds
+
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export async function POST(req: Request) {
   try {

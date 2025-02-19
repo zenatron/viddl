@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { version } from '../../package.json';
 
 type VideoInfo = {
   url: string;
@@ -95,6 +96,8 @@ export default function Home() {
         <span>For personal use only</span>
         <span>•</span>
         <span>Use responsibly</span>
+        <span>•</span>
+        <span>v{version}</span>
       </footer>
     </div>
   );
