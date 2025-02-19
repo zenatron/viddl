@@ -48,12 +48,14 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
         'Accept-Language': 'en-US,en;q=0.5',
         'Referer': url
       },
-      // Add these options for Vercel environment
       next: {
         revalidate: 0
       },
       cache: 'no-store'
     });
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       console.error('Failed to fetch page:', response.status, response.statusText);
@@ -61,7 +63,8 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
     }
 
     const html = await response.text();
-    console.log('Received HTML length:', html.length);
+    console.log('HTML preview:', html.substring(0, 200));
+    console.log('HTML length:', html.length);
     
     // Look specifically for video URLs
     const videoPatterns = [
@@ -73,23 +76,40 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
       /https?:\/\/[^"'\s]*?\.(?:mp4|webm|ogg|m3u8|mov)(?:\?[^"'\s]*)?(?=["'\s])/gi
     ];
 
+    // Add more logging for pattern matching
     for (const pattern of videoPatterns) {
+      console.log('Trying pattern:', pattern.toString());
       const matches = html.match(pattern);
       if (matches) {
+        console.log('Found matches:', matches);
         for (const match of matches) {
-          // Exclude Cloudflare and analytics URLs
           if (!match.includes('cloudflare') && !match.includes('analytics')) {
-            console.log('Found video URL:', match);
+            console.log('Valid video URL found:', match);
             return match;
           }
         }
       }
     }
 
+    // If no matches found, log some page content for debugging
+    console.log('Page content snippets:');
+    console.log('Title:', html.match(/<title[^>]*>(.*?)<\/title>/i)?.[1]);
+    console.log('Video tags:', html.match(/<video[^>]*>([\s\S]*?)<\/video>/gi));
+    console.log('Script tags count:', (html.match(/<script/gi) || []).length);
+
     console.log('No video source found in page');
     return null;
   } catch (error) {
-    console.error('Failed to extract video source:', error);
+    if (error instanceof Error) {
+      console.error('Failed to extract video source:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    } else {
+      console.error('Failed to extract video source:', String(error));
+    }
     return null;
   }
 }
