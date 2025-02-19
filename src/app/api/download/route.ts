@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getVideoInfo } from "@/utils/videoHandler";
 
+// Add this to specify the runtime
+export const runtime = 'nodejs';
+
 export async function POST(req: Request) {
   try {
     const { url } = await req.json();
