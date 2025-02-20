@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import packageJson from '../../package.json'
+import { DownloadButton } from "@/components/DownloadButton";
+import { ProgressBar } from "@/components/ProgressBar";
+import { Footer } from "@/components/Footer";
 
 type VideoInfo = {
   url: string;
@@ -17,6 +19,11 @@ export default function Home() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadStats, setDownloadStats] = useState<{
+    speed: string;
+    downloaded: string;
+    total: string;
+  }>({ speed: '0 KB/s', downloaded: '0 MB', total: '0 MB' });
 
   const handleCheck = async () => {
     if (!url) {
@@ -92,60 +99,25 @@ export default function Home() {
           {videoInfo?.directDownloadUrl && (
             <div className="w-full space-y-2">
               <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      if (!videoInfo.directDownloadUrl) return;
-                      setIsDownloading(true);
-                      setDownloadProgress(0);
-                      
-                      const response = await fetch("/api/download/video", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ 
-                          url: videoInfo.directDownloadUrl,
-                          filename: `${videoInfo.title}.${videoInfo.format}`
-                        })
-                      });
-                      
-                      const reader = response.body?.getReader();
-                      const contentLength = +(response.headers.get('Content-Length') || 0);
-                      
-                      let receivedLength = 0;
-                      const chunks = [];
-                      
-                      while(true && reader) {
-                        const {done, value} = await reader.read();
-                        
-                        if (done) break;
-                        
-                        chunks.push(value);
-                        receivedLength += value.length;
-                        setDownloadProgress(Math.round((receivedLength / contentLength) * 100));
-                      }
-                      
-                      const blob = new Blob(chunks);
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${videoInfo.title}.${videoInfo.format}`;
-                      document.body.appendChild(a);
-                      a.click();
-                      window.URL.revokeObjectURL(url);
-                      document.body.removeChild(a);
-                    } catch (error) {
-                      console.error('Download failed:', error);
-                      setError('Failed to download video');
-                    } finally {
-                      setIsDownloading(false);
-                      setDownloadProgress(0);
-                    }
+                <DownloadButton
+                  videoInfo={{
+                    directDownloadUrl: videoInfo.directDownloadUrl,
+                    title: videoInfo.title,
+                    format: videoInfo.format
                   }}
-                  disabled={isDownloading}
-                  className="flex-1 text-center rounded-lg border border-foreground p-3 hover:bg-foreground hover:text-background transition-colors disabled:opacity-50"
-                >
-                  {isDownloading ? 'Downloading...' : `Download ${videoInfo.title}`}
-                </button>
+                  onDownloadStart={() => {
+                    setIsDownloading(true);
+                    setDownloadProgress(0);
+                  }}
+                  onDownloadProgress={setDownloadProgress}
+                  onDownloadStats={setDownloadStats}
+                  onDownloadComplete={() => {
+                    setIsDownloading(false);
+                    setDownloadProgress(0);
+                  }}
+                  onError={setError}
+                  isDownloading={isDownloading}
+                />
                 
                 <a
                   href={videoInfo.directDownloadUrl}
@@ -163,26 +135,16 @@ export default function Home() {
               </div>
               
               {isDownloading && (
-                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                  <div 
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-                    style={{ width: `${downloadProgress}%` }}
-                  />
-                </div>
+                <ProgressBar
+                  progress={downloadProgress}
+                  stats={downloadStats}
+                />
               )}
             </div>
           )}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center text-sm text-gray-600 dark:text-gray-400">
-        <span>© {new Date().getFullYear()} viddl</span>
-        <span>•</span>
-        <span>For personal use only</span>
-        <span>•</span>
-        <span>Use responsibly</span>
-        <span>•</span>
-        <span>v{packageJson.version}</span>
-      </footer>
+      <Footer />
     </div>
   );
 }
