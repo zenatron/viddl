@@ -1,3 +1,5 @@
+import puppeteer from 'puppeteer';
+
 export type VideoInfo = {
   url: string;
   title: string;
@@ -41,28 +43,42 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
 async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
   try {
     console.log('Fetching page content from:', url);
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': url
-      },
-      next: {
-        revalidate: 0
-      },
-      cache: 'no-store'
-    });
-
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      console.error('Failed to fetch page:', response.status, response.statusText);
-      throw new Error(`Failed to fetch page: ${response.status}`);
+    
+    let html: string;
+    let responseStatus: number = 200;
+    
+    // First try normal fetch
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Referer': url
+        }
+      });
+      
+      responseStatus = response.status;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch page: ${response.status}`);
+      }
+      html = await response.text();
+    } catch (error) {
+      // If fetch fails, try with puppeteer to bypass Cloudflare
+      console.log(error,'Fetch failed, trying with puppeteer...');
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox']
+      });
+      
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      await page.goto(url, {waitUntil: 'networkidle0'});
+      html = await page.content();
+      await browser.close();
     }
 
-    const html = await response.text();
+    console.log('Response status:', responseStatus);
     console.log('HTML preview:', html.substring(0, 200));
     console.log('HTML length:', html.length);
     

@@ -15,6 +15,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
   const handleCheck = async () => {
     if (!url) {
@@ -88,14 +90,87 @@ export default function Home() {
           </button>
 
           {videoInfo?.directDownloadUrl && (
-            <a
-              href={videoInfo.directDownloadUrl}
-              download={`${videoInfo.title}.${videoInfo.format}`}
-              target="_blank"
-              className="block w-full text-center rounded-lg border border-foreground p-3 hover:bg-foreground hover:text-background transition-colors"
-            >
-              Download {videoInfo.title}
-            </a>
+            <div className="w-full space-y-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      if (!videoInfo.directDownloadUrl) return;
+                      setIsDownloading(true);
+                      setDownloadProgress(0);
+                      
+                      const response = await fetch("/api/download/video", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ 
+                          url: videoInfo.directDownloadUrl,
+                          filename: `${videoInfo.title}.${videoInfo.format}`
+                        })
+                      });
+                      
+                      const reader = response.body?.getReader();
+                      const contentLength = +(response.headers.get('Content-Length') || 0);
+                      
+                      let receivedLength = 0;
+                      const chunks = [];
+                      
+                      while(true && reader) {
+                        const {done, value} = await reader.read();
+                        
+                        if (done) break;
+                        
+                        chunks.push(value);
+                        receivedLength += value.length;
+                        setDownloadProgress(Math.round((receivedLength / contentLength) * 100));
+                      }
+                      
+                      const blob = new Blob(chunks);
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${videoInfo.title}.${videoInfo.format}`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+                    } catch (error) {
+                      console.error('Download failed:', error);
+                      setError('Failed to download video');
+                    } finally {
+                      setIsDownloading(false);
+                      setDownloadProgress(0);
+                    }
+                  }}
+                  disabled={isDownloading}
+                  className="flex-1 text-center rounded-lg border border-foreground p-3 hover:bg-foreground hover:text-background transition-colors disabled:opacity-50"
+                >
+                  {isDownloading ? 'Downloading...' : `Download ${videoInfo.title}`}
+                </button>
+                
+                <a
+                  href={videoInfo.directDownloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 flex items-center justify-center rounded-lg border border-foreground hover:bg-foreground hover:text-background transition-colors"
+                  title="Open processed URL"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </div>
+              
+              {isDownloading && (
+                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </main>
