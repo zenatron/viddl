@@ -5,6 +5,7 @@ export type VideoInfo = {
   title: string;
   format: string;
   directDownloadUrl?: string;
+  headers?: Record<string, string>;
 };
 
 export async function getVideoInfo(url: string): Promise<VideoInfo> {
@@ -12,24 +13,21 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
     const normalizedUrl = url.trim();
     console.log('Processing URL:', normalizedUrl);
     
-    // First check if it's a direct video URL
     if (isDirectVideoUrl(normalizedUrl)) {
       console.log('Detected as direct video URL');
-      // Verify with a HEAD request
-      const isVideo = await isValidVideoContentType(normalizedUrl);
+      const isVideo = await isValidVideoContentType(normalizedUrl, normalizedUrl);
       if (isVideo) {
         console.log('Confirmed as direct video URL');
-        return handleDirectVideo(normalizedUrl);
+        return handleDirectVideo(normalizedUrl, normalizedUrl);
       }
       console.log('URL appears to be video but content-type check failed');
     }
 
-    // Check for embedded video sources
     console.log('Checking for embedded video source...');
     const videoSource = await extractEmbeddedVideoSource(normalizedUrl);
     if (videoSource) {
       console.log('Found embedded video source:', videoSource);
-      return handleDirectVideo(videoSource);
+      return handleDirectVideo(videoSource, normalizedUrl);
     }
 
     console.log('No valid video source found');
@@ -144,27 +142,43 @@ function isDirectVideoUrl(url: string): boolean {
   }
 }
 
-function handleDirectVideo(url: string): VideoInfo {
+function handleDirectVideo(url: string, originalUrl?: string): VideoInfo {
   try {
-    // Clean up the URL and ensure it's properly encoded
     const cleanUrl = url.trim().replace(/\s+/g, '');
     const videoUrl = new URL(cleanUrl);
+    const sourceUrl = originalUrl ? new URL(originalUrl) : videoUrl;
     
-    // Extract filename from URL or use generic name
-    const filename = decodeURIComponent(videoUrl.pathname.split('/').pop() || 'video');
-    const format = getFormatFromUrl(videoUrl.href);
+    // Extract domain and clean it
+    const domain = videoUrl.hostname
+      .toLowerCase()
+      .replace(/^www\./, '')
+      .replace(/^cdn\./, '')
+      .replace(/^cdn\d+\./, '')
+      .replace(/-vid-mp4/, '')
+      .replace(/\.[^.]+$/, '')
+      .replace(/\.[^.]+$/, '')
+      .replace(/-cdn$/, '');
     
-    console.log('Processing direct video:', {
-      url: videoUrl.href,
-      filename,
-      format
-    });
+    const format = 'mp4';
 
+    // Use the source URL's origin for CDN requests
+    const refererUrl = videoUrl.hostname.includes('cdn') ? sourceUrl.origin : videoUrl.origin;
+    
     return {
       url: videoUrl.href,
-      title: filename.replace(/\.[^/.]+$/, ''), // Remove extension from title
+      title: `${domain}-download`,
       format,
-      directDownloadUrl: videoUrl.href
+      directDownloadUrl: videoUrl.href,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'video/webm,video/mp4,video/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': refererUrl,
+        'Origin': refererUrl,
+        'Sec-Fetch-Dest': 'video',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'cross-site'
+      }
     };
   } catch (error) {
     console.error('Error handling direct video:', error);
@@ -172,22 +186,36 @@ function handleDirectVideo(url: string): VideoInfo {
   }
 }
 
-function getFormatFromUrl(url: string): string {
-  const extension = url.split('.').pop()?.toLowerCase();
-  return extension || 'mp4';
-}
-
-async function isValidVideoContentType(url: string): Promise<boolean> {
+async function isValidVideoContentType(url: string, originalUrl?: string): Promise<boolean> {
   try {
+    const videoUrl = new URL(url);
+    const sourceUrl = originalUrl ? new URL(originalUrl) : videoUrl;
+    const refererUrl = videoUrl.hostname.includes('cdn') ? sourceUrl.origin : videoUrl.origin;
+
     const response = await fetch(url, { 
       method: 'HEAD',
       headers: {
-        'Accept': 'video/*'
+        'Accept': 'video/*,*/*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Range': 'bytes=0-0',
+        'Referer': refererUrl,
+        'Origin': refererUrl
       }
     });
+    
     const contentType = response.headers.get('content-type');
+    const contentLength = response.headers.get('content-length');
+    
     console.log('Content-Type:', contentType);
-    return contentType?.startsWith('video/') || false;
+    console.log('Content-Length:', contentLength);
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    
+    const validTypes = ['video/', 'application/octet-stream'];
+    const isVideoType = validTypes.some(type => contentType?.startsWith(type)) || false;
+    
+    return isVideoType;
   } catch (error) {
     console.error('Content-type check failed:', error);
     return false;
