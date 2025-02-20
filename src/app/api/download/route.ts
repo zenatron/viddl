@@ -3,7 +3,7 @@ import { getVideoInfo } from "@/utils/videoHandler";
 import chromium from '@sparticuz/chromium';
 
 export const runtime = 'nodejs';
-export const maxDuration = 10; // seconds
+export const maxDuration = 60; // seconds
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
