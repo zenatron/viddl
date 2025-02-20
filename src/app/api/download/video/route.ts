@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getVideoInfo } from "@/utils/videoHandler";
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 minutes to allow for large videos
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
