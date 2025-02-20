@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 
 export type VideoInfo = {
   url: string;
@@ -64,10 +65,7 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
     } catch (error) {
       // If fetch fails, try with puppeteer to bypass Cloudflare
       console.log(error,'Fetch failed, trying with puppeteer...');
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox']
-      });
+      const browser = await getPuppeteerBrowser();
       
       const page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
@@ -220,4 +218,13 @@ async function isValidVideoContentType(url: string, originalUrl?: string): Promi
     console.error('Content-type check failed:', error);
     return false;
   }
+}
+
+async function getPuppeteerBrowser() {
+  return puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: true,
+  });
 } 

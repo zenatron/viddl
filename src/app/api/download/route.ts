@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getVideoInfo } from "@/utils/videoHandler";
+import chromium from '@sparticuz/chromium';
 
 export const runtime = 'nodejs';
 export const maxDuration = 10; // seconds
@@ -25,10 +26,12 @@ export async function POST(req: Request) {
     // Return the video info
     return NextResponse.json(videoInfo);
   } catch (error) {
-    console.error('Download error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to find video" },
-      { status: 500 }
-    );
+    console.error('Puppeteer error details:', {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+      chromiumPath: await chromium.executablePath(),
+      chromiumArgs: chromium.args
+    });
+    throw error;
   }
 } 
