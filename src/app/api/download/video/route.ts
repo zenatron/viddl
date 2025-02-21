@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getVideoInfo } from "@/utils/videoHandler";
+import { getTikTokHeaders, verifyTikTokUrl } from "@/utils/tiktokHandler";
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -7,38 +8,44 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { url } = await req.json();
+    const { url, originalUrl } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    // Get video information including headers
     const videoInfo = await getVideoInfo(url);
 
     if (!videoInfo.directDownloadUrl) {
       return NextResponse.json({ error: "Could not process video URL" }, { status: 400 });
     }
 
-    // Fetch the video with the required headers
-    const response = await fetch(videoInfo.directDownloadUrl, {
-      headers: videoInfo.headers || {}
+    const isTikTok = videoInfo.directDownloadUrl.includes('tiktok.com');
+    const headers = isTikTok 
+      ? getTikTokHeaders(videoInfo.directDownloadUrl, originalUrl || 'https://www.tiktok.com')
+      : videoInfo.headers || {};
+
+    // Stream the response
+    const response = await fetch(videoInfo.directDownloadUrl, { 
+      headers,
+      redirect: 'follow',
+      mode: 'cors',
+      credentials: 'omit'
     });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch video: ${response.status}`);
     }
 
-    // Get the response headers
-    const headers = new Headers();
-    headers.set('Content-Type', response.headers.get('Content-Type') || 'video/mp4');
-    headers.set('Content-Length', response.headers.get('Content-Length') || '');
-    headers.set('Content-Disposition', `attachment; filename="${videoInfo.title}.${videoInfo.format}"`);
-
     // Stream the response
     return new NextResponse(response.body, {
       status: 200,
-      headers
+      headers: {
+        'Content-Type': 'video/mp4',
+        'Content-Length': response.headers.get('Content-Length') || '',
+        'Content-Disposition': `attachment; filename="${videoInfo.title}.${videoInfo.format}"`,
+        'Access-Control-Allow-Origin': '*'
+      }
     });
 
   } catch (error) {

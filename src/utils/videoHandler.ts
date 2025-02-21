@@ -1,5 +1,6 @@
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
+import { extractTikTokVideo } from './tiktokHandler';
 
 export type VideoInfo = {
   url: string;
@@ -25,7 +26,7 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
     }
 
     console.log('Checking for embedded video source...');
-    const videoSource = await extractEmbeddedVideoSource(normalizedUrl);
+    const videoSource = await extractVideoSource(normalizedUrl);
     if (videoSource) {
       console.log('Found embedded video source:', videoSource);
       return handleDirectVideo(videoSource, normalizedUrl);
@@ -36,6 +37,21 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
   } catch (error) {
     console.error('Video processing error:', error);
     throw error;
+  }
+}
+
+async function extractVideoSource(url: string): Promise<string | null> {
+  try {
+    // Check if it's a TikTok URL
+    if (url.includes('tiktok.com')) {
+      return await extractTikTokVideo(url);
+    }
+
+    // Continue with general video extraction
+    return await extractEmbeddedVideoSource(url);
+  } catch (error) {
+    console.error('Error extracting video source:', error);
+    return null;
   }
 }
 
@@ -75,15 +91,18 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
     }
 
     console.log('Response status:', responseStatus);
-    console.log('HTML preview:', html.substring(0, 200));
-    console.log('HTML length:', html.length);
     
-    // Look specifically for video URLs
+    // Update the video patterns to remove TikTok specific ones
     const videoPatterns = [
-      // CDN video patterns
+      // General CDN patterns
       /https?:\/\/(?:cdn|media)[^"'\s]*?\.(?:mp4|webm|ogg|m3u8|mov)(?:\?[^"'\s]*)?/gi,
+      
+      // Video with parameters
+      /https?:\/\/[^"'\s]*?(?:video|media)\/[^"'\s]*?\/[^"'\s]*?(?:\?[^"'\s]*)?/gi,
+      
       // Video with key parameter
       /https?:\/\/[^"'\s]*?(?:key=[^"'\s,]*)[^"'\s]*?\.(?:mp4|webm|ogg|m3u8|mov)/gi,
+      
       // Direct video URLs
       /https?:\/\/[^"'\s]*?\.(?:mp4|webm|ogg|m3u8|mov)(?:\?[^"'\s]*)?(?=["'\s])/gi
     ];
@@ -95,7 +114,10 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
       if (matches) {
         console.log('Found matches:', matches);
         for (const match of matches) {
-          if (!match.includes('cloudflare') && !match.includes('analytics')) {
+          // Skip known advertising or analytics URLs
+          if (!match.includes('cloudflare') && 
+              !match.includes('analytics') && 
+              !match.includes('tracking')) {
             console.log('Valid video URL found:', match);
             return match;
           }
@@ -103,27 +125,77 @@ async function extractEmbeddedVideoSource(url: string): Promise<string | null> {
       }
     }
 
-    // If no matches found, log some page content for debugging
-    console.log('Page content snippets:');
-    console.log('Title:', html.match(/<title[^>]*>(.*?)<\/title>/i)?.[1]);
-    console.log('Video tags:', html.match(/<video[^>]*>([\s\S]*?)<\/video>/gi));
-    console.log('Script tags count:', (html.match(/<script/gi) || []).length);
+    // If no matches found with patterns, try JSON parsing approach
+    const jsonMatches = html.match(/<script[^>]*>[\s\S]*?<\/script>/gi) || [];
+    for (const script of jsonMatches) {
+      try {
+        // Look for JSON-like content in script tags
+        const jsonContent = script.match(/\{[\s\S]*?\}/g) || [];
+        for (const json of jsonContent) {
+          try {
+            const data = JSON.parse(json);
+            // Recursively search for video URLs in the JSON
+            const videoUrl = findVideoUrlInObject(data);
+            if (videoUrl) {
+              console.log('Found video URL in JSON:', videoUrl);
+              return videoUrl;
+            }
+          } catch (e) {
+            // Ignore JSON parse errors
+          }
+        }
+      } catch (e) {
+        // Ignore script parsing errors
+      }
+    }
 
     console.log('No video source found in page');
     return null;
   } catch (error) {
-    if (error instanceof Error) {
-      console.error('Failed to extract video source:', error);
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-    } else {
-      console.error('Failed to extract video source:', String(error));
+    console.error('Failed to extract video source:', error);
+    return null;
+  }
+}
+
+// Helper function to recursively search for video URLs in objects
+function findVideoUrlInObject(obj: any): string | null {
+  if (!obj) return null;
+  
+  if (typeof obj === 'string') {
+    // Check if the string is a video URL
+    if (isDirectVideoUrl(obj)) {
+      return obj;
     }
     return null;
   }
+  
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const result = findVideoUrlInObject(item);
+      if (result) return result;
+    }
+    return null;
+  }
+  
+  if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      // Look for properties that might contain video URLs
+      if (key.toLowerCase().includes('video') || 
+          key.toLowerCase().includes('playurl') || 
+          key.toLowerCase().includes('media')) {
+        const result = findVideoUrlInObject(obj[key]);
+        if (result) return result;
+      }
+    }
+    
+    // If no video-related keys found, search all properties
+    for (const value of Object.values(obj)) {
+      const result = findVideoUrlInObject(value);
+      if (result) return result;
+    }
+  }
+  
+  return null;
 }
 
 function isDirectVideoUrl(url: string): boolean {
@@ -227,4 +299,6 @@ async function getPuppeteerBrowser() {
     executablePath: await chromium.executablePath(),
     headless: true,
   });
-} 
+}
+
+export { isDirectVideoUrl }; 
