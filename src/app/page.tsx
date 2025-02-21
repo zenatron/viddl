@@ -81,6 +81,7 @@ export default function Home() {
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyPress}
             placeholder="Paste video URL here..."
+            autoFocus
             className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
           />
           

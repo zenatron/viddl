@@ -10,11 +10,23 @@ export type VideoInfo = {
   headers?: Record<string, string>;
 };
 
-export async function getVideoInfo(url: string): Promise<VideoInfo> {
+export async function getVideoInfo(url: string): Promise<{ directDownloadUrl: string | null, title: string, format: string }> {
   try {
     const normalizedUrl = url.trim();
     console.log('Processing URL:', normalizedUrl);
     
+    // Check if it's a TikTok URL
+    if (url.includes('tiktok.com')) {
+      const videoInfo = await extractTikTokVideo(url);
+      if (!videoInfo) return { directDownloadUrl: null, title: 'video', format: 'mp4' };
+      
+      return {
+        directDownloadUrl: videoInfo.url,
+        title: videoInfo.title,
+        format: videoInfo.format
+      };
+    }
+
     if (isDirectVideoUrl(normalizedUrl)) {
       console.log('Detected as direct video URL');
       const isVideo = await isValidVideoContentType(normalizedUrl, normalizedUrl);
@@ -44,7 +56,8 @@ async function extractVideoSource(url: string): Promise<string | null> {
   try {
     // Check if it's a TikTok URL
     if (url.includes('tiktok.com')) {
-      return await extractTikTokVideo(url);
+      const videoInfo = await extractTikTokVideo(url);
+      return videoInfo?.url || null;
     }
 
     // Continue with general video extraction
@@ -212,48 +225,20 @@ function isDirectVideoUrl(url: string): boolean {
   }
 }
 
-function handleDirectVideo(url: string, originalUrl?: string): VideoInfo {
-  try {
-    const cleanUrl = url.trim().replace(/\s+/g, '');
-    const videoUrl = new URL(cleanUrl);
-    const sourceUrl = originalUrl ? new URL(originalUrl) : videoUrl;
-    
-    // Extract domain and clean it
-    const domain = videoUrl.hostname
-      .toLowerCase()
-      .replace(/^www\./, '')
-      .replace(/^cdn\./, '')
-      .replace(/^cdn\d+\./, '')
-      .replace(/-vid-mp4/, '')
-      .replace(/\.[^.]+$/, '')
-      .replace(/\.[^.]+$/, '')
-      .replace(/-cdn$/, '');
-    
-    const format = 'mp4';
-
-    // Use the source URL's origin for CDN requests
-    const refererUrl = videoUrl.hostname.includes('cdn') ? sourceUrl.origin : videoUrl.origin;
-    
+async function handleDirectVideo(url: string, originalUrl: string): Promise<{ directDownloadUrl: string | null, title: string, format: string }> {
+  if (url.includes('tiktok.com')) {
+    const videoInfo = await extractTikTokVideo(url);
     return {
-      url: videoUrl.href,
-      title: `${domain}-download`,
-      format,
-      directDownloadUrl: videoUrl.href,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'video/webm,video/mp4,video/*,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': refererUrl,
-        'Origin': refererUrl,
-        'Sec-Fetch-Dest': 'video',
-        'Sec-Fetch-Mode': 'no-cors',
-        'Sec-Fetch-Site': 'cross-site'
-      }
+      directDownloadUrl: videoInfo?.url || null,
+      title: 'tiktok-video',
+      format: 'mp4'
     };
-  } catch (error) {
-    console.error('Error handling direct video:', error);
-    throw new Error('Invalid video URL format');
   }
+  return {
+    directDownloadUrl: url,
+    title: 'video',
+    format: 'mp4'
+  };
 }
 
 async function isValidVideoContentType(url: string, originalUrl?: string): Promise<boolean> {
