@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -15,6 +17,11 @@ const nextConfig = {
       },
     ]
   },
+  env: {
+    YTDLP_PATH: process.env.NODE_ENV === 'production' 
+      ? '/path/to/production/yt-dlp'
+      : path.join(process.cwd(), 'bin', 'yt-dlp')
+  }
 }
 
 module.exports = nextConfig 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DownloadButton } from "@/components/DownloadButton";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Footer } from "@/components/Footer";
+import { getVideoInfo } from "@/utils/videoHandler";
 
 type VideoInfo = {
   url: string;
@@ -17,13 +18,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [downloadStats, setDownloadStats] = useState<{
-    speed: string;
-    downloaded: string;
-    total: string;
-  }>({ speed: '0 KB/s', downloaded: '0 MB', total: '0 MB' });
 
   const handleCheck = async () => {
     if (!url) {
@@ -36,21 +31,9 @@ export default function Home() {
     setVideoInfo(null);
 
     try {
-      const response = await fetch("/api/download", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to find video");
-      }
-
-      const data = await response.json();
-      setVideoInfo(data);
+      // Get video info using our utility
+      const info = await getVideoInfo(url);
+      setVideoInfo(info);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || "Failed to find video. Please check the URL and try again.");
@@ -108,13 +91,9 @@ export default function Home() {
                   }}
                   onDownloadStart={() => {
                     setIsDownloading(true);
-                    setDownloadProgress(0);
                   }}
-                  onDownloadProgress={setDownloadProgress}
-                  onDownloadStats={setDownloadStats}
                   onDownloadComplete={() => {
                     setIsDownloading(false);
-                    setDownloadProgress(0);
                   }}
                   onError={setError}
                   isDownloading={isDownloading}
@@ -134,13 +113,6 @@ export default function Home() {
                   </svg>
                 </a>
               </div>
-              
-              {isDownloading && (
-                <ProgressBar
-                  progress={downloadProgress}
-                  stats={downloadStats}
-                />
-              )}
             </div>
           )}
         </div>
