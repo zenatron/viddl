@@ -11,6 +11,12 @@ type VideoInfo = {
   title: string;
   format: string;
   directDownloadUrl?: string;
+  qualityOptions: {
+    low: string;
+    medium: string;
+    high: string;
+    ultra: string;
+  };
 };
 
 export default function Home() {
@@ -75,9 +81,19 @@ export default function Home() {
           <button
             onClick={handleCheck}
             disabled={isLoading}
-            className="w-full rounded-lg bg-foreground text-background p-3 hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="w-full rounded-lg bg-foreground text-background p-3 hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center"
           >
-            {isLoading ? "Checking URL..." : "Check Video"}
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Checking URL...
+              </>
+            ) : (
+              "Check Video"
+            )}
           </button>
 
           {videoInfo?.directDownloadUrl && (
@@ -87,7 +103,13 @@ export default function Home() {
                   videoInfo={{
                     directDownloadUrl: videoInfo.directDownloadUrl,
                     title: videoInfo.title,
-                    format: videoInfo.format
+                    format: videoInfo.format,
+                    qualityOptions: {
+                      low: videoInfo.qualityOptions.low,
+                      medium: videoInfo.qualityOptions.medium,
+                      high: videoInfo.qualityOptions.high,
+                      ultra: videoInfo.qualityOptions.ultra
+                    }
                   }}
                   onDownloadStart={() => {
                     setIsDownloading(true);

@@ -1,10 +1,5 @@
 // Keep this as a client-side wrapper for the API
-export type VideoInfo = {
-  url: string;
-  title: string;
-  format: string;
-  directDownloadUrl?: string;
-};
+import { VideoInfo } from '@/types';
 
 export async function getVideoInfo(url: string): Promise<VideoInfo> {
   try {
@@ -30,4 +25,4 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
     console.error('Video processing error:', error);
     throw error;
   }
-} 
+}

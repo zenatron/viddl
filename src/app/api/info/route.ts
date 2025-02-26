@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getVideoMetadata } from "@/server/ytdlp";
+import { getQualityOptions } from "@/utils/videoFormats";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,8 @@ export async function POST(req: Request) {
       url: url,
       title: videoData.title || 'video',
       format: videoData.ext || 'mp4',
-      directDownloadUrl: url
+      directDownloadUrl: url,
+      qualityOptions: getQualityOptions()
     });
   } catch (error) {
     console.error('Video info error:', error);
