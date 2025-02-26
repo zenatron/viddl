@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DownloadButtonProps, VideoQuality } from '@/types';
+import { ProgressBar } from './ProgressBar';
 
 export function DownloadButton({
   videoInfo,
@@ -8,91 +9,96 @@ export function DownloadButton({
   onError,
   isDownloading
 }: DownloadButtonProps) {
-  const [progress, setProgress] = useState(0);
-  const [downloadStats, setDownloadStats] = useState({
-    speed: '0 KB/s',
-    downloaded: '0 MB',
-    total: 'Unknown'
-  });
   const [selectedQuality, setSelectedQuality] = useState<VideoQuality>('medium');
-
-  // Poll for progress updates when downloading
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    
-    if (isDownloading) {
-      // Start with 0 progress
-      setProgress(0);
-      
-      // Poll for progress updates less frequently (every 2 seconds)
-      intervalId = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/progress?url=${encodeURIComponent(videoInfo.directDownloadUrl)}`);
-          if (response.ok) {
-            const data = await response.json();
-            setProgress(data.progress || 0);
-            setDownloadStats({
-              speed: data.speed || '0 KB/s',
-              downloaded: data.downloaded || '0 MB',
-              total: data.total || 'Unknown'
-            });
-            
-            // If download is complete, clear interval
-            if (data.progress >= 100) {
-              clearInterval(intervalId);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching progress:', error);
-        }
-      }, 2000); // Poll every 2 seconds instead of 500ms
-    }
-    
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [isDownloading, videoInfo.directDownloadUrl]);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadStats, setDownloadStats] = useState({
+    speed: '0 B/s',
+    downloaded: '0 B',
+    total: '0 B'
+  });
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'complete' | 'error'>('idle');
 
   const handleDownload = async () => {
     try {
       onDownloadStart();
+      setDownloadStatus('downloading');
       
-      // Create a hidden download link
-      const downloadLink = document.createElement('a');
-      downloadLink.style.display = 'none';
-      document.body.appendChild(downloadLink);
-      
-      // Start the download using fetch to get a blob
       const response = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}`);
       
       if (!response.ok) {
         throw new Error(`Download failed with status: ${response.status}`);
       }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get response reader');
+      }
+
+      let videoData = new Uint8Array();
       
-      // Get the blob from the response
-      const blob = await response.blob();
-      
-      // Create a URL for the blob
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+
+        // Check if this is a progress event
+        const text = new TextDecoder().decode(value);
+        if (text.startsWith('event: progress')) {
+          try {
+            const jsonStr = text.split('data: ')[1];
+            const progressData = JSON.parse(jsonStr);
+            
+            // Update progress state
+            setDownloadProgress(parseFloat(progressData.progress));
+            setDownloadStats({
+              speed: progressData.speed,
+              downloaded: formatBytes(parseInt(progressData.downloaded_bytes)),
+              total: formatBytes(parseInt(progressData.total_bytes))
+            });
+            continue;
+          } catch (e) {
+            console.error('Error parsing progress data:', e);
+          }
+        }
+
+        // Accumulate video data
+        const newData = new Uint8Array(videoData.length + value.length);
+        newData.set(videoData);
+        newData.set(value, videoData.length);
+        videoData = newData;
+      }
+
+      // Create and trigger download
+      const blob = new Blob([videoData], { type: 'video/mp4' });
       const url = window.URL.createObjectURL(blob);
       
-      // Set up the download link
+      const downloadLink = document.createElement('a');
       downloadLink.href = url;
       downloadLink.download = `${videoInfo.title}.${videoInfo.format}`;
-      
-      // Trigger the download
+      document.body.appendChild(downloadLink);
       downloadLink.click();
-      
-      // Clean up
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(downloadLink);
+      window.URL.revokeObjectURL(url);
       
-      // Complete the download
+      setDownloadStatus('complete');
       onDownloadComplete();
     } catch (error) {
       console.error('Download failed:', error);
+      setDownloadStatus('error');
       onError(error instanceof Error ? error.message : 'Failed to download video');
       onDownloadComplete();
     }
+  };
+
+  // Helper function to format bytes
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   };
 
   return (
@@ -109,7 +115,7 @@ export function DownloadButton({
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
             }`}
           >
-            360p
+            Low
           </button>
           <button
             type="button"
@@ -120,7 +126,7 @@ export function DownloadButton({
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
             }`}
           >
-            720p
+            Medium
           </button>
           <button
             type="button"
@@ -131,7 +137,7 @@ export function DownloadButton({
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
             }`}
           >
-            1080p
+            High
           </button>
           <button
             type="button"
@@ -142,7 +148,7 @@ export function DownloadButton({
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
             }`}
           >
-            2160p
+            Ultra
           </button>
         </div>
       </div>
@@ -154,20 +160,14 @@ export function DownloadButton({
       >
         {isDownloading ? 'Downloading...' : `Download ${videoInfo.title}`}
       </button>
-      
-      {isDownloading && (
-        <div className="space-y-1">
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-            <div 
-              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{downloadStats.downloaded} / {downloadStats.total}</span>
-            <span>{downloadStats.speed}</span>
-          </div>
-        </div>
+
+      {/* Progress bar */}
+      {(downloadStatus === 'downloading' || downloadStatus === 'complete') && (
+        <ProgressBar
+          progress={downloadProgress}
+          stats={downloadStats}
+          status={downloadStatus}
+        />
       )}
     </div>
   );

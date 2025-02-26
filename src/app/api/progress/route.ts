@@ -1,20 +1,26 @@
 import { NextResponse } from "next/server";
 
-// In-memory store for download progress
-// In a production app, you'd use Redis or another shared store
-const downloadProgress = new Map<string, {
+// Define a more comprehensive progress type
+type DownloadProgress = {
   progress: number;
   speed: string;
   downloaded: string;
   total: string;
+  status: 'idle' | 'downloading' | 'complete' | 'error';
   lastUpdated: number;
-}>();
+  error?: string;
+};
+
+// In-memory store for download progress
+const downloadProgress = new Map<string, DownloadProgress>();
 
 // Clean up old progress entries
 setInterval(() => {
   const now = Date.now();
   for (const [url, data] of downloadProgress.entries()) {
-    if (now - data.lastUpdated > 60000) { // Remove after 1 minute of inactivity
+    // Remove after 5 minutes of inactivity or if complete/error after 1 minute
+    const timeout = ['complete', 'error'].includes(data.status) ? 60000 : 300000;
+    if (now - data.lastUpdated > timeout) {
       downloadProgress.delete(url);
     }
   }
@@ -37,6 +43,7 @@ export async function GET(req: Request) {
       speed: '0 KB/s',
       downloaded: '0 MB',
       total: 'Unknown',
+      status: 'idle',
       lastUpdated: Date.now()
     };
     
@@ -51,14 +58,44 @@ export async function GET(req: Request) {
 }
 
 // Export a function to update progress
-export function updateProgress(url: string, data: {
-  progress: number;
-  speed: string;
-  downloaded: string;
-  total: string;
-}) {
+export function updateProgress(url: string, data: Partial<DownloadProgress>) {
+  const currentProgress = downloadProgress.get(url) || {
+    progress: 0,
+    speed: '0 KB/s',
+    downloaded: '0 MB',
+    total: 'Unknown',
+    status: 'idle',
+    lastUpdated: Date.now()
+  };
+
   downloadProgress.set(url, {
+    ...currentProgress,
     ...data,
     lastUpdated: Date.now()
+  });
+}
+
+// Helper functions to update specific progress states
+export function initializeProgress(url: string) {
+  updateProgress(url, {
+    progress: 0,
+    speed: '0 KB/s',
+    downloaded: '0 MB',
+    total: 'Unknown',
+    status: 'downloading'
+  });
+}
+
+export function completeProgress(url: string) {
+  updateProgress(url, {
+    progress: 100,
+    status: 'complete'
+  });
+}
+
+export function errorProgress(url: string, error: string) {
+  updateProgress(url, {
+    status: 'error',
+    error
   });
 }

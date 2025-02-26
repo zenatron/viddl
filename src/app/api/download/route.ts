@@ -1,20 +1,17 @@
 import { NextResponse } from "next/server";
-import { Readable } from 'stream';
 import { streamVideo } from "@/server/ytdlp";
-import { updateProgress } from "../progress/route";
 import { VideoQuality } from "@/types";
+import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
-// Handle both GET and POST requests
 async function handler(req: Request) {
+  let url: string | null = null;
+  let quality: string | null = null;
+  
   try {
-    let url: string | null = null;
-    let quality: string | null = null;
-    
-    // Get URL from either query params (GET) or request body (POST)
+    // Get URL and quality from request
     if (req.method === 'GET') {
       const { searchParams } = new URL(req.url);
       url = searchParams.get('url');
@@ -24,67 +21,53 @@ async function handler(req: Request) {
       url = body.url;
       quality = body.quality || 'medium';
     }
-    
-    console.log('Processing URL:', url);
-    
+
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    const ytDlp = await streamVideo(url, quality as VideoQuality || 'medium');
-    const stream = Readable.from(ytDlp.stdout);
+    const ytDlp = await streamVideo(url, quality as VideoQuality);
     
-    // Set up error handling and progress tracking
-    let totalBytes = 0;
-    let downloadedBytes = 0;
-    let lastUpdateTime = Date.now();
-    let bytesInLastSecond = 0;
+    // Set up SSE for progress events
+    const encoder = new TextEncoder();
+    let videoStream = new Uint8Array();
     
-    ytDlp.stderr.on('data', (data) => {
-      const output = data.toString();
-      console.log(`yt-dlp stderr: ${output}`);
-      
-      // Try to parse progress information
-      const progressMatch = output.match(/(\d+\.\d+)% of\s+~?(\d+\.\d+)(K|M|G)iB at\s+(\d+\.\d+)(K|M|G)iB\/s/);
-      if (progressMatch) {
-        const [, percent, size, sizeUnit, speed, speedUnit] = progressMatch;
-        
-        // Calculate total size in bytes
-        let multiplier = 1;
-        if (sizeUnit === 'K') multiplier = 1024;
-        if (sizeUnit === 'M') multiplier = 1024 * 1024;
-        if (sizeUnit === 'G') multiplier = 1024 * 1024 * 1024;
-        
-        totalBytes = parseFloat(size) * multiplier;
-        downloadedBytes = totalBytes * (parseFloat(percent) / 100);
-        
-        // Calculate speed
-        let speedMultiplier = 1;
-        if (speedUnit === 'K') speedMultiplier = 1024;
-        if (speedUnit === 'M') speedMultiplier = 1024 * 1024;
-        if (speedUnit === 'G') speedMultiplier = 1024 * 1024 * 1024;
-        
-        const bytesPerSecond = parseFloat(speed) * speedMultiplier;
-        
-        // Update progress
-        updateProgress(url!, {
-          progress: parseFloat(percent),
-          speed: `${speed} ${speedUnit}B/s`,
-          downloaded: `${(downloadedBytes / (1024 * 1024)).toFixed(2)} MB`,
-          total: `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`
+    const stream = new ReadableStream({
+      start(controller) {
+        ytDlp.stdout.on('data', (chunk: Buffer) => {
+          // Check if chunk is a progress event
+          const chunkStr = chunk.toString();
+          if (chunkStr.startsWith('event: progress')) {
+            controller.enqueue(encoder.encode(chunkStr));
+          } else {
+            // Accumulate video data
+            const newStream = new Uint8Array(videoStream.length + chunk.length);
+            newStream.set(videoStream);
+            newStream.set(chunk, videoStream.length);
+            videoStream = newStream;
+          }
         });
-      }
+
+        ytDlp.stdout.on('end', () => {
+          // Send the video data as the final chunk
+          controller.enqueue(videoStream);
+          controller.close();
+        });
+
+        ytDlp.stdout.on('error', (err: Error) => controller.error(err));
+      },
     });
 
-    // Create response headers
     const headers = new Headers();
-    headers.set('Content-Type', 'video/mp4');
-    headers.set('Content-Disposition', `attachment; filename="video.mp4"`);
+    headers.set('Content-Type', 'text/event-stream');
+    headers.set('Cache-Control', 'no-cache');
+    headers.set('Connection', 'keep-alive');
 
-    return new NextResponse(stream as any, {
+    return new NextResponse(stream, {
       status: 200,
       headers
     });
+
   } catch (error) {
     console.error('Download error:', error);
     return NextResponse.json(
