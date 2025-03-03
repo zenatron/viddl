@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getVideoMetadata, testYoutubeDl } from "@/server/ytdlp";
+import { getVideoMetadata } from "@/server/ytdlp";
 import { getQualityOptions } from "@/utils/videoFormats";
 
 export const runtime = 'nodejs';
@@ -16,16 +16,6 @@ export async function POST(req: Request) {
       console.log('URL is required but was not provided');
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
-
-    // First test if youtube-dl-exec is working
-    console.log('Testing youtube-dl-exec...');
-    const testResult = await testYoutubeDl(url);
-    console.log('Test result:', testResult);
-    
-    if (!testResult.success) {
-      console.error('youtube-dl-exec test failed');
-      return NextResponse.json({ error: "Failed to process video with youtube-dl" }, { status: 500 });
-    }
     
     // If test is successful, proceed with getting metadata
     console.log('Calling getVideoMetadata...');
@@ -36,7 +26,7 @@ export async function POST(req: Request) {
       // Fallback to test result if metadata doesn't have title
       const response = {
         url: url,
-        title: testResult.title || 'video',
+        title: 'video',
         format: 'mp4',
         directDownloadUrl: url,
         qualityOptions: getQualityOptions()

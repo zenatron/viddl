@@ -12,9 +12,10 @@ export function DownloadButton({
   const [selectedQuality, setSelectedQuality] = useState<VideoQuality>('medium');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadStats, setDownloadStats] = useState({
-    speed: '0 B/s',
-    downloaded: '0 B',
-    total: '0 B'
+    speed: '0 KiB/s',
+    downloaded: '0 MiB',
+    total: '0 MiB',
+    eta: 'unknown'
   });
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'complete' | 'error'>('idle');
   const [downloadId, setDownloadId] = useState<string | null>(null);
@@ -41,31 +42,46 @@ export function DownloadButton({
     if (downloadId && downloadStatus === 'downloading') {
       const fetchProgress = async () => {
         try {
+          console.log(`Fetching progress for ID: ${downloadId}`);
           const response = await fetch(`/api/download?progressId=${downloadId}`);
-          if (response.ok) {
-            const progressData = await response.json();
-            
-            // Update progress state
-            setDownloadProgress(progressData.progress);
+          
+          if (!response.ok) {
+            console.error(`Failed to fetch progress: ${response.status}`);
+            return;
+          }
+          
+          const data = await response.json();
+          console.log('Progress data:', data);
+          
+          if (data) {
+            setDownloadProgress(data.progress || 0);
             setDownloadStats({
-              speed: progressData.speed || '0 B/s',
-              downloaded: progressData.downloaded_bytes || '0 B',
-              total: progressData.total_bytes || '0 B'
+              speed: data.speed || '0 KiB/s',
+              downloaded: data.downloaded_bytes || '0 MiB',
+              total: data.total_bytes || '0 MiB',
+              eta: data.eta || 'unknown'
             });
             
-            // Check if download is complete or has error
-            if (progressData.status === 'complete') {
-              setDownloadStatus('complete');
-              if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current);
-                progressIntervalRef.current = null;
+            // Update status if provided
+            if (data.status) {
+              setDownloadStatus(data.status);
+              
+              // If download is complete, clear the interval and call the completion callback
+              if (data.status === 'complete') {
+                if (progressIntervalRef.current) {
+                  clearInterval(progressIntervalRef.current);
+                  progressIntervalRef.current = null;
+                }
+                onDownloadComplete?.();
               }
-            } else if (progressData.status === 'error') {
-              setDownloadStatus('error');
-              onError(progressData.error || 'Download failed');
-              if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current);
-                progressIntervalRef.current = null;
+              
+              // If there's an error, clear the interval and call the error callback
+              if (data.status === 'error') {
+                if (progressIntervalRef.current) {
+                  clearInterval(progressIntervalRef.current);
+                  progressIntervalRef.current = null;
+                }
+                onError?.(data.error || 'Download failed');
               }
             }
           }
@@ -73,6 +89,9 @@ export function DownloadButton({
           console.error('Error fetching progress:', error);
         }
       };
+      
+      // Initial fetch
+      fetchProgress();
       
       // Start polling
       progressIntervalRef.current = setInterval(fetchProgress, 1000);
@@ -84,7 +103,7 @@ export function DownloadButton({
         }
       };
     }
-  }, [downloadId, downloadStatus, onError]); // Remove progressInterval from dependencies
+  }, [downloadId, downloadStatus, onError, onDownloadComplete]); 
 
   const handleDownload = async () => {
     try {
@@ -93,6 +112,7 @@ export function DownloadButton({
       setDownloadProgress(0);
       
       // First, initialize the download and get an ID
+      console.log('Initializing download...');
       const initResponse = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}`, {
         headers: {
           'X-Request-Type': 'init'
@@ -104,16 +124,19 @@ export function DownloadButton({
       }
       
       const { downloadId: newDownloadId } = await initResponse.json();
+      console.log('Download initialized with ID:', newDownloadId);
       setDownloadId(newDownloadId);
       
-      // Now start the actual download
-      const response = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}`);
+      // Now start the actual download with the same ID
+      console.log('Starting download...');
+      const response = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}&downloadId=${newDownloadId}`);
       
       if (!response.ok) {
         throw new Error(`Download failed with status: ${response.status}`);
       }
       
       // Get the response as a blob
+      console.log('Download completed, processing response...');
       const blob = await response.blob();
       
       // Create and trigger download
@@ -213,16 +236,16 @@ export function DownloadButton({
       
       <button
         onClick={handleDownload}
-        disabled={isDownloading}
+        disabled={isDownloading || downloadStatus === 'downloading'}
         className="w-full text-center rounded-lg border border-foreground p-3 hover:bg-foreground hover:text-background transition-colors disabled:opacity-50"
       >
-        {isDownloading ? 'Downloading...' : `Download ${videoInfo.title}`}
+        {downloadStatus === 'downloading' ? 'Downloading...' : `Download ${videoInfo.title}`}
       </button>
 
       {/* Progress bar */}
-      {(downloadStatus === 'downloading' || downloadStatus === 'complete') && (
-        <ProgressBar
-          progress={downloadProgress}
+      {downloadStatus !== 'idle' && (
+        <ProgressBar 
+          progress={downloadProgress} 
           stats={downloadStats}
           status={downloadStatus}
         />

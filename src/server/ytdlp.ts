@@ -4,31 +4,8 @@ import { getFormatOptions } from '@/utils/videoFormats';
 import path from 'path';
 
 // Configure youtube-dl-exec to use the system-installed yt-dlp binary
-const ytdlpPath = '/Users/philipv/Documents/VSCodeProjects/viddl/venv/bin/yt-dlp';
+const ytdlpPath = process.env.YTDLP_PATH || '/Users/philipv/Documents/VSCodeProjects/viddl/bin/yt-dlp';
 const customYoutubeDl = youtubedl.create(ytdlpPath);
-
-// Test function to verify youtube-dl-exec is working
-export async function testYoutubeDl(url: string) {
-  try {
-    console.log('Testing youtube-dl-exec with URL:', url);
-    console.log('Using yt-dlp binary at:', ytdlpPath);
-    
-    // Get basic info using --get-title
-    const { stdout, stderr } = await customYoutubeDl.exec(url, {
-      getTitle: true,
-      noWarnings: true,
-      callHome: false
-    });
-    
-    console.log('youtube-dl test result - stdout:', stdout);
-    console.log('youtube-dl test result - stderr:', stderr);
-    
-    return { success: true, title: stdout.trim() };
-  } catch (error) {
-    console.error('youtube-dl test error:', error);
-    return { success: false, error };
-  }
-}
 
 // Common options for all yt-dlp commands
 const commonOptions = {
@@ -36,6 +13,8 @@ const commonOptions = {
   noCheckCertificates: true,
   noWarnings: true,
   preferFreeFormats: true,
+  // Use type assertion for extractorArgs
+  ...({ extractorArgs: 'generic:impersonate' } as any),  // Add Cloudflare bypass
   addHeader: [
     'referer:youtube.com',
     'user-agent:Mozilla/5.0 (Linux; Android 12; SM-S906N Build/QP1A.190711.020) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36',
@@ -72,10 +51,8 @@ export async function getVideoMetadata(url: string) {
   try {
     // Use exec instead of direct call for more control
     const { stdout, stderr } = await customYoutubeDl.exec(url, {
+      ...commonOptions,  // Include common options with Cloudflare bypass
       dumpSingleJson: true,
-      noPlaylist: true,
-      noCheckCertificates: true,
-      noWarnings: true
     });
     
     console.log('youtube-dl stdout length:', stdout?.length || 0);

@@ -4,6 +4,7 @@ type ProgressBarProps = {
     speed: string;
     downloaded: string;
     total: string;
+    eta?: string;
   };
   status?: 'idle' | 'downloading' | 'complete' | 'error';
 };
@@ -76,10 +77,11 @@ export function ProgressBar({ progress, stats, status = 'idle' }: ProgressBarPro
           </span>
         </div>
         
-        {/* Only show speed when downloading */}
+        {/* Show speed and ETA when downloading */}
         {status === 'downloading' && (
-          <div className="text-gray-500 dark:text-gray-400 font-mono text-sm">
-            {stats.speed}
+          <div className="text-gray-500 dark:text-gray-400 font-mono text-sm flex gap-3">
+            <span>{stats.speed}</span>
+            {stats.eta && <span>ETA: {stats.eta}</span>}
           </div>
         )}
       </div>
