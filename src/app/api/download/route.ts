@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Configure youtube-dl-exec to use the system-installed yt-dlp binary
-const ytdlpPath = process.env.YTDLP_PATH || '/Users/philipv/Documents/VSCodeProjects/viddl/bin/yt-dlp';
+const ytdlpPath = process.env.YTDLP_PATH as string;
 const customYoutubeDl = youtubedl.create(ytdlpPath);
 
 // Store download progress for each request
@@ -266,7 +266,7 @@ function handleProgressRequest(progressId: string) {
   }
   
   const progress = progressMap.get(progressId);
-  console.log(`Returning progress for ID: ${progressId}:`, progress);
+  //console.log(`Returning progress for ID: ${progressId}:`, progress);
   
   return NextResponse.json(progress);
 }

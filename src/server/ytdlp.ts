@@ -4,7 +4,7 @@ import { getFormatOptions } from '@/utils/videoFormats';
 import path from 'path';
 
 // Configure youtube-dl-exec to use the system-installed yt-dlp binary
-const ytdlpPath = process.env.YTDLP_PATH || '/Users/philipv/Documents/VSCodeProjects/viddl/bin/yt-dlp';
+const ytdlpPath = process.env.YTDLP_PATH as string;
 const customYoutubeDl = youtubedl.create(ytdlpPath);
 
 // Common options for all yt-dlp commands
