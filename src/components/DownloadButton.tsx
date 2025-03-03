@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DownloadButtonProps, VideoQuality } from '@/types';
 import { ProgressBar } from './ProgressBar';
 
@@ -17,78 +17,136 @@ export function DownloadButton({
     total: '0 B'
   });
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'complete' | 'error'>('idle');
+  const [downloadId, setDownloadId] = useState<string | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  // Poll for progress updates
+  useEffect(() => {
+    // Clear any existing interval first
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    
+    if (downloadId && downloadStatus === 'downloading') {
+      const fetchProgress = async () => {
+        try {
+          const response = await fetch(`/api/download?progressId=${downloadId}`);
+          if (response.ok) {
+            const progressData = await response.json();
+            
+            // Update progress state
+            setDownloadProgress(progressData.progress);
+            setDownloadStats({
+              speed: progressData.speed || '0 B/s',
+              downloaded: progressData.downloaded_bytes || '0 B',
+              total: progressData.total_bytes || '0 B'
+            });
+            
+            // Check if download is complete or has error
+            if (progressData.status === 'complete') {
+              setDownloadStatus('complete');
+              if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current);
+                progressIntervalRef.current = null;
+              }
+            } else if (progressData.status === 'error') {
+              setDownloadStatus('error');
+              onError(progressData.error || 'Download failed');
+              if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current);
+                progressIntervalRef.current = null;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching progress:', error);
+        }
+      };
+      
+      // Start polling
+      progressIntervalRef.current = setInterval(fetchProgress, 1000);
+      
+      return () => {
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
+      };
+    }
+  }, [downloadId, downloadStatus, onError]); // Remove progressInterval from dependencies
 
   const handleDownload = async () => {
     try {
       onDownloadStart();
       setDownloadStatus('downloading');
+      setDownloadProgress(0);
       
+      // First, initialize the download and get an ID
+      const initResponse = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}`, {
+        headers: {
+          'X-Request-Type': 'init'
+        }
+      });
+      
+      if (!initResponse.ok) {
+        throw new Error(`Download initialization failed with status: ${initResponse.status}`);
+      }
+      
+      const { downloadId: newDownloadId } = await initResponse.json();
+      setDownloadId(newDownloadId);
+      
+      // Now start the actual download
       const response = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}`);
       
       if (!response.ok) {
         throw new Error(`Download failed with status: ${response.status}`);
       }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to get response reader');
-      }
-
-      let videoData = new Uint8Array();
       
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          break;
-        }
-
-        // Check if this is a progress event
-        const text = new TextDecoder().decode(value);
-        if (text.startsWith('event: progress')) {
-          try {
-            const jsonStr = text.split('data: ')[1];
-            const progressData = JSON.parse(jsonStr);
-            
-            // Update progress state
-            setDownloadProgress(parseFloat(progressData.progress));
-            setDownloadStats({
-              speed: progressData.speed,
-              downloaded: formatBytes(parseInt(progressData.downloaded_bytes)),
-              total: formatBytes(parseInt(progressData.total_bytes))
-            });
-            continue;
-          } catch (e) {
-            console.error('Error parsing progress data:', e);
-          }
-        }
-
-        // Accumulate video data
-        const newData = new Uint8Array(videoData.length + value.length);
-        newData.set(videoData);
-        newData.set(value, videoData.length);
-        videoData = newData;
-      }
-
+      // Get the response as a blob
+      const blob = await response.blob();
+      
       // Create and trigger download
-      const blob = new Blob([videoData], { type: 'video/mp4' });
       const url = window.URL.createObjectURL(blob);
       
       const downloadLink = document.createElement('a');
       downloadLink.href = url;
-      downloadLink.download = `${videoInfo.title}.${videoInfo.format}`;
+      downloadLink.download = `${videoInfo.title}.mp4`;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
       window.URL.revokeObjectURL(url);
       
       setDownloadStatus('complete');
+      setDownloadProgress(100);
       onDownloadComplete();
+      
+      // Clean up interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
     } catch (error) {
       console.error('Download failed:', error);
       setDownloadStatus('error');
       onError(error instanceof Error ? error.message : 'Failed to download video');
       onDownloadComplete();
+      
+      // Clean up interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
     }
   };
 
