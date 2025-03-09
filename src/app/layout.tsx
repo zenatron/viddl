@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "viddl",
+  title: "viddl - Video Downloader",
   description: "video downloader",
 };
 

@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { DownloadButton } from "@/components/DownloadButton";
 import { ProgressBar } from "@/components/ProgressBar";
-import { Footer } from "@/components/Footer";
+import Footer from "@/components/Footer";
 import { getVideoInfo } from "@/utils/videoHandler";
-
+import Header from "@/components/Header";
 type VideoInfo = {
   url: string;
   title: string;
@@ -59,10 +59,12 @@ export default function Home() {
   };
 
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center w-full max-w-2xl">
-        <h1 className="text-3xl font-bold text-center">viddl</h1>
-        
+    <div className="min-h-screen bg-background flex flex-col">
+
+      <Header />
+      <div className="flex-grow flex items-center justify-center">
+        <main className="flex flex-col gap-8 row-start-2 items-center w-full max-w-2xl">
+          
         <div className="w-full space-y-4">
           <input
             type="text"
@@ -138,7 +140,8 @@ export default function Home() {
             </div>
           )}
         </div>
-      </main>
+        </main>
+      </div>
       <Footer />
     </div>
   );
