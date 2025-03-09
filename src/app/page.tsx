@@ -3,13 +3,20 @@
 import { useState } from "react";
 import { DownloadButton } from "@/components/DownloadButton";
 import { ProgressBar } from "@/components/ProgressBar";
-import { Footer } from "@/components/Footer";
-
+import Footer from "@/components/Footer";
+import { getVideoInfo } from "@/utils/videoHandler";
+import Header from "@/components/Header";
 type VideoInfo = {
   url: string;
   title: string;
   format: string;
   directDownloadUrl?: string;
+  qualityOptions: {
+    low: string;
+    medium: string;
+    high: string;
+    ultra: string;
+  };
 };
 
 export default function Home() {
@@ -17,13 +24,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [downloadStats, setDownloadStats] = useState<{
-    speed: string;
-    downloaded: string;
-    total: string;
-  }>({ speed: '0 KB/s', downloaded: '0 MB', total: '0 MB' });
 
   const handleCheck = async () => {
     if (!url) {
@@ -36,21 +37,9 @@ export default function Home() {
     setVideoInfo(null);
 
     try {
-      const response = await fetch("/api/download", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to find video");
-      }
-
-      const data = await response.json();
-      setVideoInfo(data);
+      // Get video info using our utility
+      const info = await getVideoInfo(url);
+      setVideoInfo(info);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || "Failed to find video. Please check the URL and try again.");
@@ -70,10 +59,12 @@ export default function Home() {
   };
 
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center w-full max-w-2xl">
-        <h1 className="text-3xl font-bold text-center">viddl</h1>
-        
+    <div className="min-h-screen bg-background flex flex-col">
+
+      <Header />
+      <div className="flex-grow flex items-center justify-center">
+        <main className="flex flex-col gap-8 row-start-2 items-center w-full max-w-2xl">
+          
         <div className="w-full space-y-4">
           <input
             type="text"
@@ -92,9 +83,19 @@ export default function Home() {
           <button
             onClick={handleCheck}
             disabled={isLoading}
-            className="w-full rounded-lg bg-foreground text-background p-3 hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="w-full rounded-lg bg-foreground text-background p-3 hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center"
           >
-            {isLoading ? "Checking URL..." : "Check Video"}
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Checking URL...
+              </>
+            ) : (
+              "Check Video"
+            )}
           </button>
 
           {videoInfo?.directDownloadUrl && (
@@ -104,17 +105,19 @@ export default function Home() {
                   videoInfo={{
                     directDownloadUrl: videoInfo.directDownloadUrl,
                     title: videoInfo.title,
-                    format: videoInfo.format
+                    format: videoInfo.format,
+                    qualityOptions: {
+                      low: videoInfo.qualityOptions.low,
+                      medium: videoInfo.qualityOptions.medium,
+                      high: videoInfo.qualityOptions.high,
+                      ultra: videoInfo.qualityOptions.ultra
+                    }
                   }}
                   onDownloadStart={() => {
                     setIsDownloading(true);
-                    setDownloadProgress(0);
                   }}
-                  onDownloadProgress={setDownloadProgress}
-                  onDownloadStats={setDownloadStats}
                   onDownloadComplete={() => {
                     setIsDownloading(false);
-                    setDownloadProgress(0);
                   }}
                   onError={setError}
                   isDownloading={isDownloading}
@@ -134,17 +137,11 @@ export default function Home() {
                   </svg>
                 </a>
               </div>
-              
-              {isDownloading && (
-                <ProgressBar
-                  progress={downloadProgress}
-                  stats={downloadStats}
-                />
-              )}
             </div>
           )}
         </div>
-      </main>
+        </main>
+      </div>
       <Footer />
     </div>
   );
