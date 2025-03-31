@@ -106,11 +106,17 @@ export function DownloadButton({
   }, [downloadId, downloadStatus, onError, onDownloadComplete]); 
 
   const handleDownload = async () => {
+    let newDownloadId: string | null = null; // Define here to be accessible in catch block
     try {
       onDownloadStart();
       setDownloadStatus('downloading');
       setDownloadProgress(0);
+      setDownloadStats({ speed: '0 KiB/s', downloaded: '0 MiB', total: '0 MiB', eta: 'unknown' });
       
+      // Sanitize filename: Decode URI components first, then replace invalid characters
+      const decodedTitle = decodeURIComponent(videoInfo.title);
+      const safeFilename = `${decodedTitle.replace(/[^a-zA-Z0-9\s_\-\.]/g, '_')}.mp4`;
+
       // First, initialize the download and get an ID
       console.log('Initializing download...');
       const initResponse = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}`, {
@@ -123,53 +129,42 @@ export function DownloadButton({
         throw new Error(`Download initialization failed with status: ${initResponse.status}`);
       }
       
-      const { downloadId: newDownloadId } = await initResponse.json();
+      const initData = await initResponse.json();
+      newDownloadId = initData.downloadId;
       console.log('Download initialized with ID:', newDownloadId);
-      setDownloadId(newDownloadId);
+      setDownloadId(newDownloadId); // Set download ID to start progress polling
       
-      // Now start the actual download with the same ID
-      console.log('Starting download...');
-      const response = await fetch(`/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}&downloadId=${newDownloadId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Download failed with status: ${response.status}`);
-      }
-      
-      // Get the response as a blob
-      console.log('Download completed, processing response...');
-      const blob = await response.blob();
-      
-      // Create and trigger download
-      const url = window.URL.createObjectURL(blob);
-      
+      // Construct the final download URL including the filename
+      const downloadUrl = `/api/download?url=${encodeURIComponent(videoInfo.directDownloadUrl)}&quality=${selectedQuality}&downloadId=${newDownloadId}&filename=${encodeURIComponent(safeFilename)}`;
+
+      // Create an anchor element to trigger the download
       const downloadLink = document.createElement('a');
-      downloadLink.href = url;
-      downloadLink.download = `${videoInfo.title}.mp4`;
-      document.body.appendChild(downloadLink);
+      downloadLink.href = downloadUrl;
+      downloadLink.download = safeFilename; // Use the sanitized filename
+      // We don't append/remove the link, just click it to start the native download
       downloadLink.click();
-      document.body.removeChild(downloadLink);
-      window.URL.revokeObjectURL(url);
+
+      console.log('Browser download initiated for:', downloadUrl);
+      // NOTE: We don't wait for the download to finish here.
+      // The progress polling mechanism will handle status updates.
+      // We also don't call onDownloadComplete() here anymore.
       
-      setDownloadStatus('complete');
-      setDownloadProgress(100);
-      onDownloadComplete();
-      
-      // Clean up interval
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
     } catch (error) {
       console.error('Download failed:', error);
       setDownloadStatus('error');
       onError(error instanceof Error ? error.message : 'Failed to download video');
-      onDownloadComplete();
-      
-      // Clean up interval
+      // Clean up interval if an error occurred during init or URL generation
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
       }
+      // Ensure download ID is reset if initialization failed or link creation failed
+      if (!downloadId && newDownloadId) { // If polling hasn't started but we got an ID
+        // Optionally, tell the server to clean up (needs backend support)
+      } else if (!downloadId) { // If we didn't even get an ID
+         onDownloadComplete(); // Signal completion as it truly failed early
+      }
+      // If polling already started (downloadId is set), the polling useEffect will handle cleanup
     }
   };
 

@@ -17,14 +17,16 @@ async function handler(req: Request) {
   let url: string | null = null;
   let quality: string | null = null;
   let downloadId: string | null = null;
+  let filename: string | null = null;
   
   try {
-    // Get URL and quality from request
+    // Get URL, quality, filename from request
     if (req.method === 'GET') {
       const { searchParams } = new URL(req.url);
       url = searchParams.get('url');
       quality = searchParams.get('quality') || 'medium';
       downloadId = searchParams.get('downloadId');
+      filename = searchParams.get('filename');
       
       // Check if this is a progress request
       const progressId = searchParams.get('progressId');
@@ -37,6 +39,7 @@ async function handler(req: Request) {
       url = body.url;
       quality = body.quality || 'medium';
       downloadId = body.downloadId;
+      filename = body.filename;
     }
 
     if (!url) {
@@ -95,9 +98,6 @@ async function handler(req: Request) {
         if (formatArgs.length >= 2 && formatArgs[0] === '-f') {
           formatOptions.format = formatArgs[1];
         }
-        
-        // Force remuxing to MP4
-        formatOptions.remuxVideo = 'mp4';
         
         // Add headers
         formatOptions.addHeader = [
@@ -238,6 +238,9 @@ async function handler(req: Request) {
     headers.set('Cache-Control', 'no-cache');
     headers.set('Connection', 'keep-alive');
     headers.set('X-Download-ID', downloadId);
+    if (filename) {
+      headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    }
 
     return new NextResponse(videoStream, {
       status: 200,
