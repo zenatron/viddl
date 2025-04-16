@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { DownloadButton } from "@/components/DownloadButton";
-import { ProgressBar } from "@/components/ProgressBar";
 import Footer from "@/components/Footer";
 import { getVideoInfo } from "@/utils/videoHandler";
 import Header from "@/components/Header";
+import { useDownloads } from "@/context/DownloadsContext";
+import { ActiveDownloadsList } from "@/components/ActiveDownloadsList";
+import { VideoQuality } from "@/types";
+
 type VideoInfo = {
   url: string;
   title: string;
@@ -24,7 +26,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [selectedQuality, setSelectedQuality] = useState<VideoQuality>('medium');
+
+  const { addDownload } = useDownloads();
 
   const handleCheck = async () => {
     if (!url) {
@@ -49,6 +53,23 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDownload = () => {
+    if (!videoInfo?.directDownloadUrl) {
+      setError('Cannot start download: Video info or direct URL missing.');
+      return;
+    }
+    setError("");
+
+    addDownload({
+      url: videoInfo.url,
+      filename: videoInfo.title,
+      quality: selectedQuality,
+    }).catch(err => {
+        console.error("Error calling addDownload:", err);
+        setError(err.message || "Failed to add download to queue.");
+    });
   };
 
   // Add handler for Enter key
@@ -99,30 +120,35 @@ export default function Home() {
           </button>
 
           {videoInfo?.directDownloadUrl && (
-            <div className="w-full space-y-2">
+            <div className="w-full space-y-4">
+              <div className="flex flex-col gap-2 mb-2">
+                <label className="text-sm text-gray-600 dark:text-gray-300">Quality:</label>
+                <div className="flex gap-2">
+                  {(Object.keys(videoInfo.qualityOptions) as VideoQuality[]).map((quality) => (
+                    <button
+                      key={quality}
+                      type="button"
+                      onClick={() => setSelectedQuality(quality)}
+                      className={`flex-1 py-1 px-2 text-sm rounded-md capitalize ${
+                        selectedQuality === quality
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                      }`}
+                    >
+                      {quality}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-2">
-                <DownloadButton
-                  videoInfo={{
-                    directDownloadUrl: videoInfo.directDownloadUrl,
-                    title: videoInfo.title,
-                    format: videoInfo.format,
-                    qualityOptions: {
-                      low: videoInfo.qualityOptions.low,
-                      medium: videoInfo.qualityOptions.medium,
-                      high: videoInfo.qualityOptions.high,
-                      ultra: videoInfo.qualityOptions.ultra
-                    }
-                  }}
-                  onDownloadStart={() => {
-                    setIsDownloading(true);
-                  }}
-                  onDownloadComplete={() => {
-                    setIsDownloading(false);
-                  }}
-                  onError={setError}
-                  isDownloading={isDownloading}
-                />
-                
+                 <button
+                    onClick={handleDownload}
+                    className="flex-1 text-center rounded-lg border border-foreground p-3 hover:bg-foreground hover:text-background transition-colors disabled:opacity-50"
+                  >
+                    {`Download ${videoInfo.title}`}
+                  </button>
+
                 <a
                   href={videoInfo.directDownloadUrl}
                   target="_blank"
@@ -140,6 +166,9 @@ export default function Home() {
             </div>
           )}
         </div>
+        
+        <ActiveDownloadsList />
+          
         </main>
       </div>
       <Footer />

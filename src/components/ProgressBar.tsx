@@ -1,4 +1,4 @@
-type ProgressBarProps = {
+export type ProgressBarProps = {
   progress: number;
   stats: {
     speed: string;
