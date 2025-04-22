@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+.next/
+bin/
+venv/
+
+# build outputs
+dist/
+build/
+coverage/
+
+# lockfiles
+pnpm-lock.yaml
+
+# generated or minified assets
+*.min.js
+*.min.css
+
+# test snapshots
+__snapshots__/
+
+# Misc
+.DS_Store
+*.log
+*.sh
+*.txt
+.env*

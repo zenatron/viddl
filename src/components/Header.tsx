@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { FaVideo } from 'react-icons/fa';
-import { FaGithub } from 'react-icons/fa';
+import React from "react";
+import Link from "next/link";
+import { FaVideo } from "react-icons/fa";
+import { FaGithub } from "react-icons/fa";
 
 export default function Header() {
   return (
@@ -13,12 +13,14 @@ export default function Header() {
           <FaVideo size={24} className="text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-foreground tracking-tight">{"viddl"}</h1>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">
+            {"viddl"}
+          </h1>
           <p className="text-xs text-foreground/60 -mt-1">Video downloader</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <Link 
-            href="https://github.com/zenatron/viddl" 
+          <Link
+            href="https://github.com/zenatron/viddl"
             className="p-2 rounded-full hover:bg-foreground/10 transition-colors"
             target="_blank"
             rel="noopener noreferrer"

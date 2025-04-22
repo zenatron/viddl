@@ -1,5 +1,5 @@
 // Video-related types
-export type VideoQuality = 'low' | 'medium' | 'high' | 'ultra';
+export type VideoQuality = "low" | "medium" | "high" | "ultra";
 
 export type VideoInfo = {
   url: string;
@@ -29,4 +29,4 @@ export type DownloadButtonProps = {
   onDownloadComplete: () => void;
   onError: (error: string) => void;
   isDownloading: boolean;
-}; 
+};
