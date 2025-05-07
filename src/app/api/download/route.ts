@@ -57,9 +57,7 @@ function parseYtDlpStdErr(
   currentDownloadId: string,
 ): Partial<DownloadProgress> | null {
   if (line.startsWith("ERROR:")) {
-    console.error(
-      `yt-dlp ERROR detected for ID ${currentDownloadId}: ${line}`,
-    );
+    console.error(`yt-dlp ERROR detected for ID ${currentDownloadId}: ${line}`);
     return {
       status: "error",
       error: line.substring(6).trim(),
@@ -102,11 +100,13 @@ function parseYtDlpStdErr(
           downloadedBytes = `${((progress / 100) * sizeValue).toFixed(2)}${sizeUnit}`;
         }
       }
-      
+
       return {
         progress,
         speed,
-        total_bytes: totalSize.startsWith("~") ? totalSize.substring(1) : totalSize,
+        total_bytes: totalSize.startsWith("~")
+          ? totalSize.substring(1)
+          : totalSize,
         downloaded_bytes: downloadedBytes,
         eta,
         status: progress === 100 ? "complete" : "downloading",
@@ -242,10 +242,8 @@ function createVideoStreamAndManageDownload(
               ...finalEntry.progressData,
               progress: 100,
               speed: "0KiB/s",
-              total_bytes:
-                finalEntry.progressData.total_bytes ?? "0MiB",
-              downloaded_bytes:
-                finalEntry.progressData.total_bytes ?? "0MiB", // Should be total_bytes
+              total_bytes: finalEntry.progressData.total_bytes ?? "0MiB",
+              downloaded_bytes: finalEntry.progressData.total_bytes ?? "0MiB", // Should be total_bytes
               status: "complete",
             };
             finalEntry.process = undefined;
@@ -261,10 +259,7 @@ function createVideoStreamAndManageDownload(
       });
 
       ytDlp.on("error", (err: Error) => {
-        console.error(
-          `Process spawn error for ID ${currentDownloadId}:`,
-          err,
-        );
+        console.error(`Process spawn error for ID ${currentDownloadId}:`, err);
         const entryOnError = progressMap.get(currentDownloadId);
         if (entryOnError) {
           entryOnError.progressData = {
@@ -365,9 +360,9 @@ async function handler(req: Request) {
 
     // Start the download process by creating the video stream
     const videoStream = createVideoStreamAndManageDownload(
-      url as string, 
-      formatOptions, 
-      downloadId! // downloadId is confirmed to be non-null here
+      url as string,
+      formatOptions,
+      downloadId!, // downloadId is confirmed to be non-null here
       // progressMap // progressMap is in scope
     );
 

@@ -25,17 +25,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${atkinsonHyperlegible.variable} antialiased`}
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-        >
-            <Header />
-            <DownloadsProvider>{children}</DownloadsProvider>
-            <Footer />
+      <body className={`${atkinsonHyperlegible.variable} antialiased`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Header />
+          <DownloadsProvider>{children}</DownloadsProvider>
+          <Footer />
         </ThemeProvider>
       </body>
     </html>

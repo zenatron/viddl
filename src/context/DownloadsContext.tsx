@@ -127,7 +127,10 @@ export const DownloadsProvider: React.FC<DownloadsProviderProps> = ({
         );
 
         // Now trigger the actual browser download
-        let baseFilename = itemInfo.filename.replace(/[^a-zA-Z0-9\s_\-\.]/g, "_");
+        let baseFilename = itemInfo.filename.replace(
+          /[^a-zA-Z0-9\s_\-\.]/g,
+          "_",
+        );
         // Remove leading/trailing dots and ensure it's not empty or just dots
         baseFilename = baseFilename.replace(/^\.+|\.+$/g, "").trim();
         if (!baseFilename || /^\.*$/.test(baseFilename)) {

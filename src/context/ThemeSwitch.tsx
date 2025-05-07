@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useTheme } from 'next-themes';
-import { FaSun, FaMoon, FaDesktop } from 'react-icons/fa';
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { FaSun, FaMoon, FaDesktop } from "react-icons/fa";
 
 const themes = [
-  { id: 'system', icon: FaDesktop },
-  { id: 'light', icon: FaSun },
-  { id: 'dark', icon: FaMoon },
+  { id: "system", icon: FaDesktop },
+  { id: "light", icon: FaSun },
+  { id: "dark", icon: FaMoon },
 ] as const;
 
 export default function ThemeSwitch() {
