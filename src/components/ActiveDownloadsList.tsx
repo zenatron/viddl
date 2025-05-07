@@ -208,7 +208,7 @@ export function ActiveDownloadsList() {
               download.status === "downloading") && (
               <button
                 onClick={() => cancelDownload(download.id)}
-                className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 ml-2 flex-shrink-0 py-1 px-2 rounded"
                 disabled={download.id.startsWith("temp-")} // Disable cancel for pending items
               >
                 Cancel
@@ -220,7 +220,7 @@ export function ActiveDownloadsList() {
               download.status === "cancelled") && (
               <button
                 onClick={() => removeDownload(download.id)}
-                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 ml-2 flex-shrink-0 py-1 px-2 rounded"
               >
                 Clear
               </button>
@@ -238,13 +238,13 @@ export function ActiveDownloadsList() {
           />
           {/* Display error message if status is error */}
           {download.status === "error" && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
               Error: {download.error || "Unknown error"}
             </p>
           )}
           {/* Display cancelled message */}
           {download.status === "cancelled" && (
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+            <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
               {download.error || "Download cancelled."}
             </p>
           )}

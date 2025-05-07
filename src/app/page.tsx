@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Footer from "@/components/Footer";
 import { getVideoInfo } from "@/utils/videoHandler";
-import Header from "@/components/Header";
 import { useDownloads } from "@/context/DownloadsContext";
 import { ActiveDownloadsList } from "@/components/ActiveDownloadsList";
 import { VideoQuality } from "@/types";
@@ -85,9 +83,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header />
       <div className="flex-grow flex items-center justify-center">
-        <main className="flex flex-col gap-8 row-start-2 items-center w-full max-w-2xl">
+        <main className="flex flex-col gap-8 row-start-2 items-center w-full max-w-2xl px-4">
           <div className="w-full space-y-4">
             <input
               type="text"
@@ -99,7 +96,7 @@ export default function Home() {
               className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
             />
 
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && <p className="text-error text-sm">{error}</p>}
 
             <button
               onClick={handleCheck}
@@ -109,7 +106,7 @@ export default function Home() {
               {isLoading ? (
                 <>
                   <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-background"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"
@@ -141,7 +138,7 @@ export default function Home() {
                   <label className="text-sm text-gray-600 dark:text-gray-300">
                     Quality:
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {(
                       Object.keys(videoInfo.qualityOptions) as VideoQuality[]
                     ).map((quality) => (
@@ -151,7 +148,7 @@ export default function Home() {
                         onClick={() => setSelectedQuality(quality)}
                         className={`flex-1 py-1 px-2 text-sm rounded-md capitalize ${
                           selectedQuality === quality
-                            ? "bg-blue-600 text-white"
+                            ? "bg-primary text-white"
                             : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                         }`}
                       >
@@ -161,7 +158,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     onClick={handleDownload}
                     className="flex-1 text-center rounded-lg border border-foreground p-3 hover:bg-foreground hover:text-background transition-colors disabled:opacity-50"
@@ -200,7 +197,6 @@ export default function Home() {
           <ActiveDownloadsList />
         </main>
       </div>
-      <Footer />
     </div>
   );
 }

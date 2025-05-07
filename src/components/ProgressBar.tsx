@@ -56,7 +56,7 @@ export function ProgressBar({
       </div>
 
       {/* Status and stats */}
-      <div className="flex justify-between items-center text-sm">
+      <div className="flex flex-wrap justify-between items-center text-sm">
         <div className="text-gray-600 dark:text-gray-400">
           <span className="inline-flex items-center gap-2">
             {status === "downloading" && (
@@ -92,7 +92,7 @@ export function ProgressBar({
 
       {/* Show percentage when downloading or complete */}
       {(status === "downloading" || status === "complete") && (
-        <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+        <div className="text-right text-sm text-gray-500 dark:text-gray-400">
           {progress.toFixed(1)}%
         </div>
       )}

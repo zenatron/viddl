@@ -3,19 +3,68 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f9fafb; /* Light background */
+  --foreground: #171717; /* Light foreground (text) */
+
+  /* Light Theme Primary Colors */
+  --primary: #2563eb; 
+  --primary-light: #60a5fa;
+  --primary-dark: #1d4ed8;
+
+  /* Light Theme UI Elements */
+  --card-background: #ffffff; 
+  --border-color: #e5e7eb;    
+
+  /* Light Theme Semantic Colors */
+  --success: #16a34a; 
+  --success-light: #22c55e;
+  --success-dark: #15803d;
+  --error: #dc2626; 
+  --error-light: #ef4444;
+  --error-dark: #b91c1c;
+  --warning: #f59e0b; 
+  --info: #3b82f6;    
+
+  /* Light Theme Syntax Highlighting */
+  --syntax-added-bg: rgba(22, 163, 74, 0.1);
+  --syntax-added-text: #16a34a;
+  --syntax-added-border: #15803d;
+  --syntax-removed-bg: rgba(220, 38, 38, 0.1);
+  --syntax-removed-text: #dc2626;
+  --syntax-removed-border: #b91c1c;
+  --syntax-neutral: #6b7280;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html.dark { /* Dark theme overrides */
+  --background: #0a0a0a;    
+  --foreground: #ededed;    
+
+  --primary: #3b82f6;        
+  --primary-light: #60a5fa;
+  --primary-dark: #2563eb;
+  --card-background: #111827; 
+  --border-color: #374151;    
+
+  --success: #10b981;       
+  --success-light: #34d399;
+  --success-dark: #059669;
+  --error: #ef4444;         
+  --error-light: #f87171;
+  --error-dark: #dc2626;
+  --warning: #f59e0b;       
+  --info: #3b82f6;          
+  
+  --syntax-added-bg: rgba(16, 185, 129, 0.1); 
+  --syntax-added-text: #34d399;
+  --syntax-added-border: #059669;
+  --syntax-removed-bg: rgba(239, 68, 68, 0.1); 
+  --syntax-removed-text: #f87171;
+  --syntax-removed-border: #dc2626;
+  --syntax-neutral: #6b7280;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-atkinson-hyperlegible), sans-serif;
 }
