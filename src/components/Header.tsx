@@ -16,7 +16,7 @@ export default function Header() {
           <h1 className="text-xl font-bold text-foreground tracking-tight">
             {"viddl"}
           </h1>
-          <p className="text-xs text-foreground/60 -mt-1">Video downloader</p>
+          <p className="text-xs text-foreground/60 -mt-1">Video Downloader</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <Link

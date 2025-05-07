@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { VideoQuality } from "@/types";
-import youtubedl from "youtube-dl-exec";
+import { customYoutubeDl } from "@/server/ytdlp";
 import { getFormatOptions } from "@/utils/videoFormats";
 import { ChildProcess } from "child_process";
 
@@ -21,15 +21,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Configure youtube-dl-exec to use the specified yt-dlp binary path
-const ytdlpPath = process.env.YTDLP_PATH;
+// const ytdlpPath = process.env.YTDLP_PATH; // No longer needed here
 
-if (!ytdlpPath) {
-  console.error("ERROR: YTDLP_PATH environment variable is not set.");
-  // Optionally, throw an error to prevent startup if the path is essential
-  // throw new Error('YTDLP_PATH environment variable is required.');
-}
+// if (!ytdlpPath) { // No longer needed here
+//   console.error("ERROR: YTDLP_PATH environment variable is not set.");
+//   // Optionally, throw an error to prevent startup if the path is essential
+//   // throw new Error('YTDLP_PATH environment variable is required.');
+// }
 
-const customYoutubeDl = ytdlpPath ? youtubedl.create(ytdlpPath) : youtubedl; // Fallback to default if path is missing
+// const customYoutubeDl = ytdlpPath ? youtubedl.create(ytdlpPath) : youtubedl; // No longer needed here, use imported instance
 
 const PROGRESS_CLEANUP_DELAY_MS = 60000; // 1 minute
 
@@ -49,6 +49,243 @@ function scheduleProgressCleanup(downloadId: string) {
     progressMap.delete(downloadId);
     console.log(`Cleaned up progress data for ID: ${downloadId}`);
   }, PROGRESS_CLEANUP_DELAY_MS);
+}
+
+// Helper function to parse yt-dlp stderr for progress and errors
+function parseYtDlpStdErr(
+  line: string,
+  currentDownloadId: string,
+): Partial<DownloadProgress> | null {
+  if (line.startsWith("ERROR:")) {
+    console.error(
+      `yt-dlp ERROR detected for ID ${currentDownloadId}: ${line}`,
+    );
+    return {
+      status: "error",
+      error: line.substring(6).trim(),
+    };
+  }
+
+  if (line.includes("[download]") && line.includes("%")) {
+    try {
+      const progressMatch = line.match(/(\d+\.\d+)%/);
+      let progress = 0;
+      if (progressMatch && progressMatch[1]) {
+        progress = parseFloat(progressMatch[1]);
+      }
+
+      let speed = "0KiB/s";
+      const speedMatch = line.match(/at\s+([\d.]+\w+\/s)/);
+      if (speedMatch && speedMatch[1]) {
+        speed = speedMatch[1];
+      }
+
+      let totalSize = "0MiB";
+      const sizeMatch = line.match(/of\s+(~?[\d.]+\w+)/);
+      if (sizeMatch && sizeMatch[1]) {
+        totalSize = sizeMatch[1];
+      }
+
+      let eta = "unknown";
+      const etaMatch = line.match(/ETA\s+([\d:]+)/);
+      if (etaMatch && etaMatch[1]) {
+        eta = etaMatch[1];
+      }
+
+      // Estimate downloaded bytes (this might not be perfectly accurate for all yt-dlp outputs)
+      let downloadedBytes = "0MiB";
+      if (totalSize !== "0MiB" && !totalSize.startsWith("~") && progress > 0) {
+        // Attempt to parse totalSize (e.g., "100.5MiB")
+        const sizeValue = parseFloat(totalSize);
+        const sizeUnit = totalSize.match(/[a-zA-Z]+/)?.[0] || "MiB";
+        if (!isNaN(sizeValue)) {
+          downloadedBytes = `${((progress / 100) * sizeValue).toFixed(2)}${sizeUnit}`;
+        }
+      }
+      
+      return {
+        progress,
+        speed,
+        total_bytes: totalSize.startsWith("~") ? totalSize.substring(1) : totalSize,
+        downloaded_bytes: downloadedBytes,
+        eta,
+        status: progress === 100 ? "complete" : "downloading",
+      };
+    } catch (e) {
+      console.warn(
+        `Could not parse progress line for ID ${currentDownloadId}: ${line}`,
+        e,
+      );
+    }
+  }
+  return null;
+}
+
+// Helper function to prepare yt-dlp execution options
+function prepareYtDlpOptions(quality: VideoQuality): Record<string, any> {
+  const formatArgs = getFormatOptions(quality);
+  const formatOptions: Record<string, any> = {
+    noCheckCertificates: true,
+    noWarnings: true,
+    preferFreeFormats: true,
+    output: "-", // Output to stdout
+    extractorArgs: "generic:impersonate",
+    // Force MP4 container with compatible codecs as a base
+    format: "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+    addHeader: [
+      "referer:youtube.com",
+      "user-agent:Mozilla/5.0 (Linux; Android 12; SM-S906N Build/QP1A.190711.020) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36",
+      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language: en-US,en;q=0.5",
+      "DNT: 1",
+    ],
+  };
+
+  // Override with quality-specific format if provided by getFormatOptions
+  if (formatArgs.length >= 2 && formatArgs[0] === "-f") {
+    formatOptions.format = formatArgs[1];
+  }
+  return formatOptions;
+}
+
+// Helper function to create the video stream and manage the download process
+function createVideoStreamAndManageDownload(
+  url: string,
+  formatOptions: Record<string, any>,
+  currentDownloadId: string,
+  // progressMap: Map<string, ProgressEntry> // Passed to manage state
+): ReadableStream {
+  return new ReadableStream({
+    start(controller) {
+      console.log("Executing youtube-dl with options:", formatOptions);
+      const ytDlp = customYoutubeDl.exec(url, formatOptions);
+
+      const pid = ytDlp.pid;
+      let currentEntry = progressMap.get(currentDownloadId);
+      if (currentEntry) {
+        currentEntry.process = ytDlp;
+        currentEntry.progressData.pid = pid;
+        currentEntry.progressData.status = "downloading";
+      } else {
+        console.error(
+          `Progress entry not found for ID ${currentDownloadId} when starting process.`,
+        );
+        // Initialize a new entry if somehow missing after init (defensive)
+        currentEntry = {
+          progressData: {
+            progress: 0,
+            speed: "0KiB/s",
+            total_bytes: "0MiB",
+            downloaded_bytes: "0MiB",
+            status: "downloading",
+            pid: pid,
+          },
+          process: ytDlp,
+        };
+        progressMap.set(currentDownloadId, currentEntry);
+      }
+      console.log(
+        `Started process for ID ${currentDownloadId} with PID: ${pid}`,
+      );
+
+      let controllerClosed = false;
+
+      ytDlp.stderr?.on("data", (data: Buffer) => {
+        const stderr = data.toString();
+        const lines = stderr.split("\n");
+        for (const line of lines) {
+          const progressUpdate = parseYtDlpStdErr(line, currentDownloadId);
+          if (progressUpdate) {
+            const entryToUpdate = progressMap.get(currentDownloadId);
+            if (entryToUpdate) {
+              Object.assign(entryToUpdate.progressData, progressUpdate);
+              if (progressUpdate.status === "error") {
+                console.error(
+                  `yt-dlp processing error for ID ${currentDownloadId}: ${progressUpdate.error}`,
+                );
+                if (!controllerClosed) {
+                  controller.error(
+                    new Error(
+                      progressUpdate.error || "yt-dlp processing error",
+                    ),
+                  );
+                  controllerClosed = true;
+                }
+                ytDlp.kill();
+                scheduleProgressCleanup(currentDownloadId);
+                return;
+              }
+              if (progressUpdate.status === "complete") {
+                entryToUpdate.progressData.progress = 100;
+              }
+            } else {
+              console.warn(
+                `Progress entry not found for ID ${currentDownloadId} during stderr parsing.`,
+              );
+            }
+          }
+        }
+      });
+
+      ytDlp.stdout?.on("data", (chunk: Buffer) => {
+        if (!controllerClosed) {
+          controller.enqueue(chunk);
+        }
+      });
+
+      ytDlp.stdout?.on("end", () => {
+        if (!controllerClosed) {
+          console.log(`Download complete for ID: ${currentDownloadId}`);
+          const finalEntry = progressMap.get(currentDownloadId);
+          if (finalEntry) {
+            finalEntry.progressData = {
+              ...finalEntry.progressData,
+              progress: 100,
+              speed: "0KiB/s",
+              total_bytes:
+                finalEntry.progressData.total_bytes ?? "0MiB",
+              downloaded_bytes:
+                finalEntry.progressData.total_bytes ?? "0MiB", // Should be total_bytes
+              status: "complete",
+            };
+            finalEntry.process = undefined;
+          } else {
+            console.error(
+              `Progress entry not found for ID ${currentDownloadId} on completion.`,
+            );
+          }
+          scheduleProgressCleanup(currentDownloadId);
+          controllerClosed = true;
+          controller.close();
+        }
+      });
+
+      ytDlp.on("error", (err: Error) => {
+        console.error(
+          `Process spawn error for ID ${currentDownloadId}:`,
+          err,
+        );
+        const entryOnError = progressMap.get(currentDownloadId);
+        if (entryOnError) {
+          entryOnError.progressData = {
+            ...entryOnError.progressData,
+            status: "error",
+            error: err.message || "Failed to start download process",
+          };
+          entryOnError.process = undefined;
+        } else {
+          console.error(
+            `Progress entry not found for ID ${currentDownloadId} during process spawn error.`,
+          );
+        }
+        if (!controllerClosed) {
+          controllerClosed = true;
+          controller.error(err);
+        }
+        scheduleProgressCleanup(currentDownloadId);
+      });
+    },
+  });
 }
 
 async function handler(req: Request) {
@@ -96,13 +333,13 @@ async function handler(req: Request) {
     console.log(
       `Download request for URL: ${url}, quality: ${quality}, ID: ${downloadId}`,
     );
-    if (ytdlpPath) {
-      console.log("Using yt-dlp binary at:", ytdlpPath);
-    } else {
-      console.warn(
-        "YTDLP_PATH not set, using default yt-dlp bundled with youtube-dl-exec.",
-      );
-    }
+    // if (ytdlpPath) { // Logging for this path is now in server/ytdlp.ts
+    //   console.log("Using yt-dlp binary at:", ytdlpPath);
+    // } else {
+    //   console.warn(
+    //     "YTDLP_PATH not set, using default yt-dlp bundled with youtube-dl-exec.",
+    //   );
+    // }
 
     // Return the download ID immediately
     if (req.headers.get("x-request-type") === "init") {
@@ -123,262 +360,16 @@ async function handler(req: Request) {
       return NextResponse.json({ downloadId });
     }
 
-    // Start the download process
-    const videoStream = new ReadableStream({
-      start(controller) {
-        const currentDownloadId = downloadId!; // Assert non-null as it's set by now
+    // Prepare yt-dlp options
+    const formatOptions = prepareYtDlpOptions(quality as VideoQuality);
 
-        // Get format options based on quality
-        const formatArgs = getFormatOptions(quality as VideoQuality);
-
-        // Convert format options array to object properties for youtube-dl-exec
-        const formatOptions: Record<string, any> = {};
-
-        // Basic options
-        formatOptions.noCheckCertificates = true;
-        formatOptions.noWarnings = true;
-        formatOptions.preferFreeFormats = true;
-        formatOptions.output = "-"; // Output to stdout
-
-        formatOptions.extractorArgs = "generic:impersonate";
-
-        // Force MP4 container with compatible codecs
-        formatOptions.format =
-          "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
-
-        // Override with quality-specific format if provided
-        if (formatArgs.length >= 2 && formatArgs[0] === "-f") {
-          formatOptions.format = formatArgs[1];
-        }
-
-        // Add headers
-        formatOptions.addHeader = [
-          "referer:youtube.com",
-          "user-agent:Mozilla/5.0 (Linux; Android 12; SM-S906N Build/QP1A.190711.020) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36",
-          "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Language: en-US,en;q=0.5",
-          "DNT: 1",
-        ];
-
-        console.log("Executing youtube-dl with options:", formatOptions);
-
-        // Execute youtube-dl using the potentially custom instance
-        const ytDlp = customYoutubeDl.exec(url as string, formatOptions);
-
-        // Store the process and its PID in the map
-        const pid = ytDlp.pid;
-        const currentEntry = progressMap.get(currentDownloadId);
-        if (currentEntry) {
-          currentEntry.process = ytDlp;
-          currentEntry.progressData.pid = pid;
-          currentEntry.progressData.status = "downloading"; // Update status when process starts
-        } else {
-          // Should ideally not happen if init was called first, but handle defensively
-          console.error(
-            `Progress entry not found for ID ${currentDownloadId} when starting process.`,
-          );
-          progressMap.set(currentDownloadId, {
-            progressData: {
-              progress: 0,
-              speed: "0KiB/s",
-              total_bytes: "0MiB",
-              downloaded_bytes: "0MiB",
-              status: "downloading",
-              pid: pid,
-            },
-            process: ytDlp,
-          });
-        }
-        console.log(
-          `Started process for ID ${currentDownloadId} with PID: ${pid}`,
-        );
-
-        // Flag to track if controller is already closed
-        let controllerClosed = false;
-
-        // Handle progress events from stderr
-        ytDlp.stderr?.on("data", (data: Buffer) => {
-          const stderr = data.toString();
-
-          const lines = stderr.split("\n");
-          let isError = false; // Flag to check if an error was detected in this chunk
-          let errorMessage = "";
-
-          for (const line of lines) {
-            // Check for explicit ERROR lines first
-            if (line.startsWith("ERROR:")) {
-              console.error(
-                `yt-dlp ERROR detected for ID ${currentDownloadId}: ${line}`,
-              );
-              isError = true;
-              errorMessage = line.substring(6).trim();
-              break;
-            }
-
-            // Original progress parsing logic
-            if (line.includes("[download]") && line.includes("%")) {
-              try {
-                // Extract progress percentage
-                const progressMatch = line.match(/(\d+\.\d+)%/);
-                if (progressMatch && progressMatch[1]) {
-                  const progress = parseFloat(progressMatch[1]);
-
-                  // Extract speed if available
-                  let speed = "0KiB/s";
-                  const speedMatch = line.match(/at\s+([\d.]+\w+\/s)/);
-                  if (speedMatch && speedMatch[1]) {
-                    speed = speedMatch[1];
-                  }
-
-                  // Extract size if available
-                  let totalSize = "0MiB";
-                  const sizeMatch = line.match(/of\s+(~?[\d.]+\w+)/);
-                  if (sizeMatch && sizeMatch[1]) {
-                    totalSize = sizeMatch[1];
-                  }
-
-                  // Extract ETA if available
-                  let eta = "unknown";
-                  const etaMatch = line.match(/ETA\s+([\d:]+)/);
-                  if (etaMatch && etaMatch[1]) {
-                    eta = etaMatch[1];
-                  }
-
-                  // Calculate downloaded bytes
-                  const downloadedBytes =
-                    totalSize !== "0MiB"
-                      ? `${((progress / 100) * parseFloat(totalSize)).toFixed(
-                          2,
-                        )}${totalSize.replace(/[\d.]+/, "")}`
-                      : "0MiB";
-
-                  // console.log(`Progress update for ${currentDownloadId}: ${progress}%, speed: ${speed}, size: ${totalSize}, ETA: ${eta}`);
-
-                  // Update progress map only if no error was detected in this chunk
-                  if (!isError) {
-                    const currentEntry = progressMap.get(currentDownloadId);
-                    if (
-                      currentEntry &&
-                      currentEntry.progressData.status !== "complete" &&
-                      currentEntry.progressData.status !== "error" &&
-                      currentEntry.progressData.status !== "cancelled"
-                    ) {
-                      currentEntry.progressData = {
-                        ...currentEntry.progressData,
-                        progress,
-                        speed,
-                        total_bytes: totalSize,
-                        downloaded_bytes: downloadedBytes,
-                        eta,
-                        status: "downloading",
-                      };
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error("Error parsing progress data:", error);
-              }
-            }
-          }
-
-          if (isError) {
-            const currentEntry = progressMap.get(currentDownloadId);
-            if (currentEntry) {
-              currentEntry.progressData = {
-                ...currentEntry.progressData,
-                progress: currentEntry.progressData.progress ?? 0,
-                speed: currentEntry.progressData.speed ?? "0KiB/s",
-                total_bytes: currentEntry.progressData.total_bytes ?? "0MiB",
-                downloaded_bytes:
-                  currentEntry.progressData.downloaded_bytes ?? "0MiB",
-                status: "error",
-                error: errorMessage || "yt-dlp processing error",
-              };
-              currentEntry.process = undefined; // Clear process reference
-            } else {
-              console.error(
-                `Progress entry not found for ID ${currentDownloadId} during stderr error.`,
-              );
-            }
-
-            if (!controllerClosed) {
-              controllerClosed = true;
-              controller.error(
-                new Error(errorMessage || "yt-dlp processing error"),
-              );
-            }
-            scheduleProgressCleanup(currentDownloadId);
-          }
-        });
-
-        // Handle video data from stdout
-        ytDlp.stdout?.on("data", (chunk: Buffer) => {
-          if (!controllerClosed) {
-            controller.enqueue(chunk);
-          }
-        });
-
-        // Handle end of stream
-        ytDlp.stdout?.on("end", () => {
-          if (!controllerClosed) {
-            console.log(`Download complete for ID: ${currentDownloadId}`);
-            const finalEntry = progressMap.get(currentDownloadId);
-            if (finalEntry) {
-              finalEntry.progressData = {
-                ...finalEntry.progressData,
-                progress: 100,
-                speed: "0KiB/s",
-                total_bytes: finalEntry.progressData.total_bytes ?? "0MiB",
-                downloaded_bytes: finalEntry.progressData.total_bytes ?? "0MiB",
-                status: "complete",
-              };
-              finalEntry.process = undefined; // Clear process reference
-            } else {
-              console.error(
-                `Progress entry not found for ID ${currentDownloadId} on completion.`,
-              );
-            }
-
-            scheduleProgressCleanup(currentDownloadId);
-
-            controllerClosed = true;
-            controller.close();
-          }
-        });
-
-        ytDlp.on("error", (err: Error) => {
-          console.error(
-            `Process spawn error for ID ${currentDownloadId}:`,
-            err,
-          );
-
-          const currentEntry = progressMap.get(currentDownloadId);
-          if (currentEntry) {
-            currentEntry.progressData = {
-              ...currentEntry.progressData,
-              progress: currentEntry.progressData.progress ?? 0,
-              speed: currentEntry.progressData.speed ?? "0KiB/s",
-              total_bytes: currentEntry.progressData.total_bytes ?? "0MiB",
-              downloaded_bytes:
-                currentEntry.progressData.downloaded_bytes ?? "0MiB",
-              status: "error",
-              error: err.message || "Failed to start download process",
-            };
-            currentEntry.process = undefined; // Clear process reference
-          } else {
-            console.error(
-              `Progress entry not found for ID ${currentDownloadId} during process spawn error.`,
-            );
-          }
-
-          if (!controllerClosed) {
-            controllerClosed = true;
-            controller.error(err);
-          }
-          scheduleProgressCleanup(currentDownloadId);
-        });
-      },
-    });
+    // Start the download process by creating the video stream
+    const videoStream = createVideoStreamAndManageDownload(
+      url as string, 
+      formatOptions, 
+      downloadId! // downloadId is confirmed to be non-null here
+      // progressMap // progressMap is in scope
+    );
 
     const headers = new Headers();
     headers.set("Content-Type", "video/mp4");

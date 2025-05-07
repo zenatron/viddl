@@ -5,7 +5,7 @@ export type VideoInfo = {
   url: string;
   title: string;
   format: string;
-  directDownloadUrl?: string;
+  sourceUrl?: string;
   qualityOptions: Record<VideoQuality, string>;
 };
 
@@ -18,15 +18,16 @@ export type DownloadStats = {
 };
 
 // Component prop types
-export type DownloadButtonProps = {
-  videoInfo: {
-    directDownloadUrl: string;
-    title: string;
-    format: string;
-    qualityOptions: Record<VideoQuality, string>;
-  };
-  onDownloadStart: () => void;
-  onDownloadComplete: () => void;
-  onError: (error: string) => void;
-  isDownloading: boolean;
-};
+// Remove DownloadButtonProps as the component is deleted
+// export type DownloadButtonProps = {
+//   videoInfo: {
+//     sourceUrl: string;
+//     title: string;
+//     format: string;
+//     qualityOptions: Record<VideoQuality, string>;
+//   };
+//   onDownloadStart: () => void;
+//   onDownloadComplete: () => void;
+//   onError: (error: string) => void;
+//   isDownloading: boolean;
+// };

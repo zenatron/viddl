@@ -28,7 +28,7 @@ export async function POST(req: Request) {
         url: url,
         title: "video",
         format: "mp4",
-        directDownloadUrl: url,
+        sourceUrl: url,
         qualityOptions: getQualityOptions(),
       };
 
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       url: url,
       title: videoInfo.title,
       format: videoInfo.ext || "mp4",
-      directDownloadUrl: url,
+      sourceUrl: url,
       qualityOptions: getQualityOptions(),
     };
 

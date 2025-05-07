@@ -2,7 +2,22 @@ import youtubedl from "youtube-dl-exec";
 
 // Configure youtube-dl-exec to use the system-installed yt-dlp binary
 const ytdlpPath = process.env.YTDLP_PATH as string;
-const customYoutubeDl = youtubedl.create(ytdlpPath);
+
+if (!ytdlpPath) {
+  console.error("CRITICAL: YTDLP_PATH environment variable is not set. This application may not function correctly.");
+  // throw new Error("YTDLP_PATH environment variable is required for server operations."); // Option: Hard fail
+}
+
+export const customYoutubeDl = ytdlpPath 
+  ? youtubedl.create(ytdlpPath) 
+  : (() => {
+      console.error("CRITICAL: YTDLP_PATH not set. Using a non-functional youtube-dl wrapper. Downloads will likely fail.");
+      // Return a dummy object that will throw errors if its methods are called
+      return {
+        exec: () => Promise.reject(new Error("yt-dlp path not configured")) as any,
+        // Add other methods if they are directly called from youtubeDl.METHOD()
+      };
+    })();
 
 // Common options for all yt-dlp commands
 const commonOptions = {

@@ -24,12 +24,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  env: {
-    YTDLP_PATH:
-      process.env.NODE_ENV === "production"
-        ? "/path/to/production/yt-dlp"
-        : path.join(process.cwd(), "bin", "yt-dlp"),
-  },
 };
 
 export default nextConfig;

@@ -12,7 +12,7 @@ type VideoInfo = {
   url: string;
   title: string;
   format: string;
-  directDownloadUrl?: string;
+  sourceUrl?: string;
   qualityOptions: {
     low: string;
     medium: string;
@@ -60,8 +60,8 @@ export default function Home() {
   };
 
   const handleDownload = () => {
-    if (!videoInfo?.directDownloadUrl) {
-      setError("Cannot start download: Video info or direct URL missing.");
+    if (!videoInfo?.sourceUrl) {
+      setError("Cannot start download: Video info or source URL missing.");
       return;
     }
     setError("");
@@ -135,7 +135,7 @@ export default function Home() {
               )}
             </button>
 
-            {videoInfo?.directDownloadUrl && (
+            {videoInfo?.sourceUrl && (
               <div className="w-full space-y-4">
                 <div className="flex flex-col gap-2 mb-2">
                   <label className="text-sm text-gray-600 dark:text-gray-300">
@@ -170,11 +170,11 @@ export default function Home() {
                   </button>
 
                   <a
-                    href={videoInfo.directDownloadUrl}
+                    href={videoInfo.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 flex items-center justify-center rounded-lg border border-foreground hover:bg-foreground hover:text-background transition-colors"
-                    title="Open processed URL"
+                    title="Open Original Source"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"

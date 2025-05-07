@@ -6,7 +6,7 @@ import React, {
   useContext,
   ReactNode,
 } from "react";
-import { VideoQuality } from "@/types"; // Assuming types are defined here
+import { VideoQuality } from "@/types";
 
 // Define the structure for a single download item
 export interface DownloadItem {
@@ -127,7 +127,14 @@ export const DownloadsProvider: React.FC<DownloadsProviderProps> = ({
         );
 
         // Now trigger the actual browser download
-        const safeFilename = `${itemInfo.filename.replace(/[^a-zA-Z0-9\s_\-\.]/g, "_")}.mp4`;
+        let baseFilename = itemInfo.filename.replace(/[^a-zA-Z0-9\s_\-\.]/g, "_");
+        // Remove leading/trailing dots and ensure it's not empty or just dots
+        baseFilename = baseFilename.replace(/^\.+|\.+$/g, "").trim();
+        if (!baseFilename || /^\.*$/.test(baseFilename)) {
+          baseFilename = "viddl-download";
+        }
+        const safeFilename = `${baseFilename}.mp4`;
+
         const downloadUrl = `/api/download?url=${encodeURIComponent(itemInfo.url)}&quality=${itemInfo.quality}&downloadId=${downloadId}&filename=${encodeURIComponent(safeFilename)}`;
 
         const downloadLink = document.createElement("a");
