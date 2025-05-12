@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zenatron/viddl:latest
+    ports:
+      - "${APP_PORT_HOST:-3000}:3000" # Maps host port (default 3000) to container port 3000
+    environment:
+      - PORT=3000 # Port the Next.js app listens on inside the container
+      - YTDLP_PATH=/opt/pydepenv/bin/yt-dlp # Path to the yt-dlp binary inside the container
+    restart: unless-stopped

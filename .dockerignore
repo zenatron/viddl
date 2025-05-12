@@ -1,0 +1,37 @@
+# Docker Ignore
+
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules
+
+# Next.js build output
+.next
+
+# Local environment variables
+.env*.local
+.env
+
+# PNPM
+#pnpm-lock.yaml
+
+# Editor/OS specific
+.DS_Store
+*.pem
+.vscode
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Misc
+README.md
+
+# Python virtual environment (if any, based on your file listing)
+venv/
+#requirements.txt
+#setup.sh 
