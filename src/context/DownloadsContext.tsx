@@ -49,6 +49,7 @@ interface DownloadsContextType {
   ) => void;
   removeDownload: (id: string) => void;
   cancelDownload: (id: string) => Promise<void>;
+  clearAllDownloads: () => void; // Added to clear all downloads
 }
 
 // Create the context with a default value
@@ -186,6 +187,32 @@ export const DownloadsProvider: React.FC<DownloadsProviderProps> = ({
     setDownloads((prev) => prev.filter((d) => d.id !== id));
   }, []);
 
+  // Function to clear all downloads
+  const clearAllDownloads = useCallback(() => {
+    // Before clearing, we might want to attempt to cancel any active downloads
+    // to inform the backend, though this example directly clears the UI.
+    // For a more robust solution, iterate and call cancelDownload for active ones.
+    downloads.forEach(download => {
+      if (download.status === "downloading" || download.status === "starting") {
+        // We don't await these, just fire and forget for cleanup
+        // The backend should handle cleanup of its resources eventually
+        fetch(`/api/download?downloadId=${download.id}`, { method: "DELETE" })
+          .then(response => {
+            if (!response.ok) {
+              console.warn(`Attempt to cancel ${download.id} during clearAll failed.`);
+            } else {
+              console.log(`Sent cancel request for ${download.id} during clearAll.`);
+            }
+          })
+          .catch(error => {
+            console.error(`Error sending cancel request for ${download.id} during clearAll:`, error);
+          });
+      }
+    });
+    setDownloads([]);
+    console.log("All downloads cleared from UI.");
+  }, [downloads]); // Add downloads to dependency array
+
   // Function to cancel a download
   const cancelDownload = useCallback(
     async (id: string) => {
@@ -252,6 +279,7 @@ export const DownloadsProvider: React.FC<DownloadsProviderProps> = ({
         updateDownloadProgress,
         removeDownload,
         cancelDownload,
+        clearAllDownloads,
       }}
     >
       {children}

@@ -25,7 +25,7 @@ const mapStatusForProgressBar = (
 };
 
 export function ActiveDownloadsList() {
-  const { downloads, updateDownloadProgress, removeDownload, cancelDownload } =
+  const { downloads, updateDownloadProgress, removeDownload, cancelDownload, clearAllDownloads } =
     useDownloads();
 
   // Ref to hold the latest downloads state for the polling function
@@ -188,9 +188,19 @@ export function ActiveDownloadsList() {
 
   return (
     <div className="w-full mt-6 space-y-3">
-      <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-        Downloads
-      </h2>
+      <div className="flex justify-between items-center mb-1">
+        <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+          Downloads
+        </h2>
+        {downloads.length > 0 && (
+          <button
+            onClick={clearAllDownloads}
+            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 py-1 px-2 rounded"
+          >
+            Clear All
+          </button>
+        )}
+      </div>
       {downloads.map((download) => (
         <div
           key={download.id}
