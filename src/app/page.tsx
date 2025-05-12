@@ -19,6 +19,13 @@ type VideoInfo = {
   };
 };
 
+const qualityGradients = {
+  low: "bg-gradient-to-r from-green-500 to-yellow-500",
+  medium: "bg-gradient-to-r from-orange-500 to-red-500",
+  high: "bg-gradient-to-r from-blue-500 to-purple-500",
+  ultra: "bg-[linear-gradient(to_right,_#4da6ff,_#7d7aff,_#ff77a9,_#ffa759)]",
+};
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -148,7 +155,7 @@ export default function Home() {
                         onClick={() => setSelectedQuality(quality)}
                         className={`flex-1 py-1 px-2 text-sm rounded-md capitalize ${
                           selectedQuality === quality
-                            ? "bg-primary text-white"
+                            ? `bg-primary text-white ${qualityGradients[quality]}`
                             : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                         }`}
                       >
