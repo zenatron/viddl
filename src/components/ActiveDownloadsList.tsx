@@ -50,12 +50,7 @@ export function ActiveDownloadsList() {
     );
 
     if (activeDownloads.length === 0) {
-      // Optional: Could stop the interval here if desired when no active downloads
-      // if (pollingIntervalRef.current) {
-      //     console.log('Stopping polling interval - no active downloads.');
-      //     clearInterval(pollingIntervalRef.current);
-      //     pollingIntervalRef.current = null;
-      // }
+      // TODO: Stop the interval when no active downloads
       return;
     }
 

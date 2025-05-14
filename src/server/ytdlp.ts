@@ -7,22 +7,9 @@ if (!ytdlpPath) {
   console.error(
     "CRITICAL: YTDLP_PATH environment variable is not set. This application may not function correctly.",
   );
-  // throw new Error("YTDLP_PATH environment variable is required for server operations."); // Option: Hard fail
 }
 
-export const customYoutubeDl = ytdlpPath
-  ? youtubedl.create(ytdlpPath)
-  : (() => {
-      console.error(
-        "CRITICAL: YTDLP_PATH not set. Using a non-functional youtube-dl wrapper. Downloads will likely fail.",
-      );
-      // Return a dummy object that will throw errors if its methods are called
-      return {
-        exec: () =>
-          Promise.reject(new Error("yt-dlp path not configured")) as any,
-        // Add other methods if they are directly called from youtubeDl.METHOD()
-      };
-    })();
+export const dl = youtubedl.create(ytdlpPath);
 
 // Common options for all yt-dlp commands
 const commonOptions = {
@@ -46,7 +33,7 @@ export async function listVideoFormats(url: string): Promise<string> {
   console.log(`Listing formats for ${url}...`);
 
   try {
-    const result = await customYoutubeDl.exec(url, {
+    const result = await dl.exec(url, {
       ...commonOptions,
       listFormats: true,
     });
@@ -66,8 +53,7 @@ export async function getVideoMetadata(url: string) {
   console.log("Using yt-dlp binary at:", ytdlpPath);
 
   try {
-    // Use exec instead of direct call for more control
-    const { stdout, stderr } = await customYoutubeDl.exec(url, {
+    const { stdout, stderr } = await dl.exec(url, {
       ...commonOptions,
       dumpSingleJson: true,
     });

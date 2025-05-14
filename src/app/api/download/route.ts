@@ -1,35 +1,24 @@
 import { NextResponse } from "next/server";
 import { VideoQuality } from "@/types";
-import { customYoutubeDl } from "@/server/ytdlp";
+import { dl } from "@/server/ytdlp";
 import { getFormatOptions } from "@/utils/videoFormats";
 import { ChildProcess } from "child_process";
 
-// Define type for progress state
+// progress state
 interface DownloadProgress {
   progress: number;
   speed: string;
   total_bytes: string;
   downloaded_bytes: string;
-  status: "starting" | "downloading" | "complete" | "error" | "cancelled"; // Added 'cancelled' status
+  status: "starting" | "downloading" | "complete" | "error" | "cancelled";
   eta?: string;
   error?: string;
-  pid?: number; // Added optional process ID
-  process?: ChildProcess; // Store the actual process object
+  pid?: number;
+  process?: ChildProcess;
 }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Configure youtube-dl-exec to use the specified yt-dlp binary path
-// const ytdlpPath = process.env.YTDLP_PATH; // No longer needed here
-
-// if (!ytdlpPath) { // No longer needed here
-//   console.error("ERROR: YTDLP_PATH environment variable is not set.");
-//   // Optionally, throw an error to prevent startup if the path is essential
-//   // throw new Error('YTDLP_PATH environment variable is required.');
-// }
-
-// const customYoutubeDl = ytdlpPath ? youtubedl.create(ytdlpPath) : youtubedl; // No longer needed here, use imported instance
 
 const PROGRESS_CLEANUP_DELAY_MS = 60000; // 1 minute
 
@@ -158,7 +147,7 @@ function createVideoStreamAndManageDownload(
   return new ReadableStream({
     start(controller) {
       console.log("Executing youtube-dl with options:", formatOptions);
-      const ytDlp = customYoutubeDl.exec(url, formatOptions);
+      const ytDlp = dl.exec(url, formatOptions);
 
       const pid = ytDlp.pid;
       let currentEntry = progressMap.get(currentDownloadId);
@@ -323,18 +312,9 @@ async function handler(req: Request) {
 
     console.log(`Using download ID: ${downloadId}`);
 
-    // Removed initial progressMap.set for 'starting' status
-
     console.log(
       `Download request for URL: ${url}, quality: ${quality}, ID: ${downloadId}`,
     );
-    // if (ytdlpPath) { // Logging for this path is now in server/ytdlp.ts
-    //   console.log("Using yt-dlp binary at:", ytdlpPath);
-    // } else {
-    //   console.warn(
-    //     "YTDLP_PATH not set, using default yt-dlp bundled with youtube-dl-exec.",
-    //   );
-    // }
 
     // Return the download ID immediately
     if (req.headers.get("x-request-type") === "init") {
@@ -362,8 +342,7 @@ async function handler(req: Request) {
     const videoStream = createVideoStreamAndManageDownload(
       url as string,
       formatOptions,
-      downloadId!, // downloadId is confirmed to be non-null here
-      // progressMap // progressMap is in scope
+      downloadId!,
     );
 
     const headers = new Headers();
@@ -475,7 +454,6 @@ async function handleCancelRequest(req: Request) {
       console.log(
         `Attempting to kill process with PID: ${pid} for download ID: ${downloadId}`,
       );
-      // Use 'SIGTERM' first for graceful shutdown, could use 'SIGKILL' if needed
       process.kill(pid, "SIGTERM");
       entry.progressData.status = "cancelled";
       entry.progressData.error = "Download cancelled by user.";

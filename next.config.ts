@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -11,8 +10,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   // compiler: {
-  //   removeConsole: process.env.NODE_ENV === "production",
+  //   removeConsole:
+  //     process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
   // },
+
   async headers() {
     return [
       {

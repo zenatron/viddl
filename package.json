@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "build-docker": "docker buildx build --platform linux/amd64 --load -t zenatron/viddl:latest .",
+    "push-docker": "docker push zenatron/viddl:latest"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

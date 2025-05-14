@@ -5,6 +5,8 @@ import { getVideoInfo } from "@/utils/videoHandler";
 import { useDownloads } from "@/context/DownloadsContext";
 import { ActiveDownloadsList } from "@/components/ActiveDownloadsList";
 import { VideoQuality } from "@/types";
+import { MdOutlineOpenInNew } from "react-icons/md";
+import Link from "next/link";
 
 type VideoInfo = {
   url: string;
@@ -173,29 +175,15 @@ export default function Home() {
                     {`Download ${videoInfo.title}`}
                   </button>
 
-                  <a
+                  <Link
                     href={videoInfo.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 flex items-center justify-center rounded-lg border border-foreground hover:bg-foreground hover:text-background transition-colors"
                     title="Open Original Source"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </a>
+                    <MdOutlineOpenInNew className="w-4 h-4" />
+                  </Link>
                 </div>
               </div>
             )}
